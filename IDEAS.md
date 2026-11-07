@@ -12,4 +12,4 @@ It combines a visually clear live demonstration, subject-specific learning, real
 
 ## First decisions at the venue
 
-Find a regulated 5 V board supply, a USB 3 cable, and an x86-64 Windows or Linux Vivado machine. Ask Axo for the raw EMG Mac API and two bands; ask Medra whether a safe robot command API is available. Find the variant label on the back of the XEM7310 and the teammate's board model. If any critical dependency is unavailable, preserve the single-board FPGA signal-processing work and choose the best available live input.
+Reproduce the owner's working laptop-to-XEM7310 USB-C setup and locate its current bitstream build flow. Ask Axo for the raw EMG Mac API and two bands; ask Medra whether a safe robot command API is available. Find the variant label on the back of the XEM7310 and the teammate's board model. If any critical dependency is unavailable, preserve the single-board FPGA signal-processing work and choose the best available live input.

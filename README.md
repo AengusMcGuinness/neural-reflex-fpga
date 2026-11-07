@@ -20,17 +20,17 @@ webcam -> hand landmarks -> paired training labels -> quantized per-user weights
 
 ## Build order
 
-1. **Power and enumerate the board.** Identify XEM7310-A75 versus A200, obtain the correct 5 V supply and USB 3 cable, and run a stock FrontPanel example.
+1. **Reproduce the working board setup.** This XEM7310 already runs directly from the owner's laptop over USB-C. Identify XEM7310-A75 versus A200, confirm FrontPanel enumeration, and run the existing bitstream or a stock example.
 2. **Acquire paired data.** Confirm Axo band access and the raw EMG API. Timestamp raw samples and webcam hand landmarks. Measure synchronization before choosing a training window.
 3. **Make a software baseline.** Train a small ridge decoder for one or two continuous controls. Validate on held-out movements from the same wearer. Use this to drive the virtual gripper.
 4. **Implement FPGA inference.** Compute windowed mean absolute value and waveform length per channel, then apply quantized linear weights. Compare the RTL output with a bit-exact software reference on recorded samples.
 5. **Measure and demo.** Show raw signals, calibration, an unseen grasp task, prediction error, and p50/p95 latency. Add physical robot control only with a bounded workspace, watchdog, and emergency stop.
 
-## Immediate hardware gate
+## Known board setup
 
-The supplied photo shows an XEM7310 module with a barrel power jack and USB-C connector. It does **not** reveal whether this is the A75 or A200 variant. [Opal Kelly specifies](https://docs.opalkelly.com/xem7310/powering-the-xem7310/) a regulated 4.5–5.5 V supply through the DC jack or expansion connector. USB power requires a board modification and is not the default. We should use the specified external supply.
+The supplied photo shows an XEM7310 module with a barrel power jack and USB-C connector. The owner reports that this particular board already powers up and runs code when plugged directly into their laptop over USB-C. Treat that working setup as verified for this project; an external supply is not a prerequisite. The photo does **not** reveal whether the FPGA is the A75 or A200 variant. [Opal Kelly's standard power documentation](https://docs.opalkelly.com/xem7310/powering-the-xem7310/) describes a different default configuration, so we should not infer this board's internal power configuration from the photo.
 
-FrontPanel supports a macOS host, but [AMD's supported Vivado hosts](https://docs.amd.com/r/2025.2-English/ug973-vivado-release-notes-install-license/Supported-Operating-Systems) are x86-64 Windows and Linux. We need one such machine for bitstream builds. The exact board variant, teammate's board, power setup, Axo access, and Medra access remain unconfirmed.
+Use the owner's existing programming workflow. If a new Vivado bitstream must be built, [AMD's supported Vivado hosts](https://docs.amd.com/r/2025.2-English/ug973-vivado-release-notes-install-license/Supported-Operating-Systems) are x86-64 Windows and Linux; FrontPanel host communication supports macOS. The exact FPGA variant, teammate's board, Axo access, and Medra access remain unconfirmed.
 
 ## Scope rule
 
