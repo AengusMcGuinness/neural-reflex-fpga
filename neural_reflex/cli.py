@@ -7,12 +7,14 @@ import random
 import sys
 import time
 from collections import deque
+from itertools import groupby
 from pathlib import Path
 
 import numpy as np
 
 from .pipeline import (fit_decoder, load_rows, metrics, predict, save_json,
                        split_windows, validate_emg, window_features)
+from .fpga_packet import pack_batch
 
 
 def simulate(args):
@@ -74,12 +76,16 @@ def capture(args):
                 row = {"t_ns": now_ns, "emg": emg}
                 if "t_ns" in incoming:
                     row["source_t_ns"] = incoming["t_ns"]
+                for field in ("band_timestamp_us", "sample_index", "batch_sequence",
+                              "host_time_s", "stream_session_id", "band_connection_id"):
+                    if field in incoming:
+                        row[field] = incoming[field]
                 if phases:
                     elapsed = (now_ns - start_ns) / 1e9
                     cycle_seconds = sum(seconds for _, seconds in phases)
                     round_id = int(elapsed // cycle_seconds)
                     if round_id >= args.rounds:
-                        break
+                        continue  # drain the upstream reader instead of breaking its pipe
                     position = elapsed % cycle_seconds
                     for name, seconds in phases:
                         if position < seconds:
@@ -169,6 +175,10 @@ def live(args):
             row = {"t_ns": now_ns, "emg": emg}
             if "t_ns" in incoming:
                 row["source_t_ns"] = incoming["t_ns"]
+            for field in ("band_timestamp_us", "sample_index", "batch_sequence",
+                          "host_time_s", "stream_session_id", "band_connection_id"):
+                if field in incoming:
+                    row[field] = incoming[field]
             if output:
                 output.write(json.dumps(row) + "\n")
             recent.append(row)
@@ -186,6 +196,68 @@ def live(args):
         if output:
             output.close()
         print(f"\nProcessed {count} raw samples; CPU baseline only", file=sys.stderr)
+
+
+def normalize_kinesis(args):
+    """Flatten Axo Kinesis schema-v1 EMG batches into raw per-sample JSONL."""
+    count = 0
+    connection_id = None
+    for line_number, line in enumerate(sys.stdin, 1):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+            if event["schema_version"] != 1 or not isinstance(event["payload"], dict):
+                raise ValueError("unsupported Kinesis event schema")
+            kind = event["type"]
+            if kind == "hello":
+                connection_id = event["payload"].get("status", {}).get("band_connection_id")
+            elif kind == "status":
+                connection_id = event["payload"].get("band_connection_id")
+            elif kind == "emg":
+                payload = event["payload"]
+                values = payload["values"]
+                if not isinstance(values, list) or not values:
+                    raise ValueError("EMG batch is empty or malformed")
+                for sample_index, sample in enumerate(values):
+                    validate_emg(sample)
+                    row = {"emg": sample, "band_timestamp_us": event["band_timestamp_us"],
+                           "sample_index": sample_index,
+                           "batch_sequence": payload["sequence"],
+                           "host_time_s": event["host_time_s"],
+                           "stream_session_id": event["stream_session_id"],
+                           "band_connection_id": connection_id}
+                    print(json.dumps(row, separators=(",", ":")), flush=True)
+                    count += 1
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValueError(f"stdin:{line_number}: {error}") from error
+    print(f"Normalized {count} Kinesis raw EMG samples", file=sys.stderr)
+
+
+def packetize(args):
+    """Turn a complete Kinesis capture into fixed-size USB PipeIn packets."""
+    rows = load_rows(args.input)
+    epochs = {row.get("band_connection_id") for row in rows}
+    if len(epochs) != 1 or None in epochs:
+        raise ValueError("capture must contain one known band connection epoch")
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    batches = 0
+    key = lambda row: (row.get("batch_sequence"), row.get("band_timestamp_us"))
+    previous_sequence = None
+    with output.open("wb") as sink:
+        for (sequence, timestamp), grouped in groupby(rows, key):
+            group = list(grouped)
+            if sequence is None or timestamp is None:
+                raise ValueError("input is missing Kinesis batch metadata")
+            if [row.get("sample_index") for row in group] != list(range(16)):
+                raise ValueError(f"batch {sequence} is incomplete or out of order")
+            if previous_sequence is not None and (sequence - previous_sequence) % (2**32) != 1:
+                raise ValueError(f"gap or repeated batch after sequence {previous_sequence}")
+            sink.write(pack_batch(sequence, timestamp, [row["emg"] for row in group]))
+            batches += 1
+            previous_sequence = sequence
+    print(f"Packed {batches} batches ({batches * 16} raw samples) to {output}")
 
 
 def main():
@@ -224,6 +296,13 @@ def main():
     controller.add_argument("--model", required=True)
     controller.add_argument("--capture", help="optional local JSONL path for raw recording")
     controller.set_defaults(func=live)
+    normalizer = commands.add_parser("kinesis-normalize",
+                                    help="flatten Axo Kinesis event JSONL to raw eight-channel samples")
+    normalizer.set_defaults(func=normalize_kinesis)
+    packetizer = commands.add_parser("packetize", help="pack recorded Kinesis batches for FPGA PipeIn")
+    packetizer.add_argument("--input", required=True)
+    packetizer.add_argument("--output", default="data/private/fpga_packets.bin")
+    packetizer.set_defaults(func=packetize)
     args = parser.parse_args()
     try:
         if hasattr(args, "sample_rate") and args.sample_rate <= 0:

@@ -1,6 +1,6 @@
 # Implementation plan
 
-This plan assumes access to one Axo/Meta neural band, the Medra arm, and the existing working USB-C XEM7310 setup. The Axo and Medra APIs are event-specific and have not been supplied, so their exact method names and command rates must be learned from their teams. Everything below the two adapters can be built without those details.
+The Axo/Meta band is paired through [Kinesis](KINESIS.md), and its raw eight-channel feed has been read, packetized, and passed through the XEM7310 packet receiver. The Medra arm and its event-specific API are still unconfirmed. FPGA feature extraction and inference remain to be built.
 
 ## Demo contract
 
@@ -11,14 +11,14 @@ The FPGA must be in the live signal path. The Mac receives raw EMG, timestamps a
 ## Modules and interfaces
 
 ```text
-band adapter -> timestamped 8 x int16 samples -> acquisition queue
+Kinesis SSE -> timestamped 8 x uint16 ADC counts -> acquisition queue
 camera -> timestamped hand landmarks -> calibration labels
 acquisition queue -> FrontPanel PipeIn -> FPGA window/features/decoder
 FPGA result/status -> FrontPanel WireOut -> host controller
 host controller -> virtual gripper / Medra adapter
 ```
 
-The band adapter must report the actual sample rate, raw units, channel order, and whether timestamps are generated on the band or on the Mac. The Medra adapter must expose only supported operations: get state, move to an approved pose, set gripper target (or open/close), and stop. Query its supported command rate and whether a hardware emergency stop is available. Do not assume servo-level access.
+Kinesis reports 2,048 samples/second/channel, eight unsigned ADC channels, and 16 samples per batch. Its band timestamp and Mac host receipt time use different clocks; preserve both plus batch sequence and connection ID. The Medra adapter must expose only supported operations: get state, move to an approved pose, set gripper target (or open/close), and stop. Query its supported command rate and whether a hardware emergency stop is available. Do not assume servo-level access.
 
 ## Calibration and model
 
@@ -26,7 +26,7 @@ Use MediaPipe Hand Landmarker on the webcam to obtain 21 hand landmarks with tim
 
 Collect several rounds of rest, open hand, and slow pinches from the same wearer. Split evaluation by *time block*, not randomly by adjacent windows, so overlapping windows do not leak into both training and validation. Start with a ridge regression or a three-state classifier. Only keep continuous aperture control if it behaves well on a held-out round. Save the per-user normalization values with the model.
 
-For each channel, start with mean absolute value and waveform length over a measured window (for example, 100 ms with a 20 ms hop). These numbers are initial choices, not band specifications. Compare a few windows using offline replay. Quantize feature scaling, weights, and bias to a documented signed fixed-point format. Run the same integer math in a Python reference before putting it in RTL. Clamp output to the robot's supported gripper range.
+For each channel, start with mean absolute deviation from the window mean and waveform length over a measured window (for example, 100 ms with a 20 ms hop). Removing the DC offset matters because Kinesis sends unsigned ADC counts. These window settings are initial choices, not band specifications. Compare a few windows using offline replay. Quantize feature scaling, weights, and bias to a documented signed fixed-point format. Run the same integer math in a Python reference before putting it in RTL. Clamp output to the robot's supported gripper range.
 
 ## XEM7310 design
 
@@ -41,7 +41,7 @@ Proposed endpoint map, to be validated against the installed SDK sample:
 | WireIn `0x01` onward | Host to FPGA | Quantized weights and bias |
 | WireOut `0x20` onward | FPGA to host | Latest result, sequence, status, cycle count |
 
-The first packet experiment should send known 32-bit patterns through `0x80` and read them back or expose them on WireOut. That verifies byte order and word alignment before any EMG logic is added. FrontPanel USB 3 Pipes are 32 bits wide. Use the installed SDK's Python `write_to_pipe_in` / `read_from_pipe_out` names if it has the idiomatic API; older bindings use `WriteToPipeIn` / `ReadFromPipeOut`. For the low-rate latest result, WireOut polling is simpler than a PipeOut FIFO. If result history is needed, add a Block-Throttled PipeOut after the first demo.
+The host packet contract is now fixed in [FPGA_FIRST.md](FPGA_FIRST.md) and `neural_reflex/fpga_packet.py`: one 272-byte packet per 16 raw EMG samples, with explicit little-endian words. The first FPGA experiment should send known packets through `0x80` and expose word count, magic, sequence, and checksum on WireOut. That verifies byte order and alignment before EMG logic is added. FrontPanel USB 3 Pipes are 32 bits wide. Use the installed SDK's Python `write_to_pipe_in` / `read_from_pipe_out` names if it has the idiomatic API; older bindings use `WriteToPipeIn` / `ReadFromPipeOut`. For the low-rate latest result, WireOut polling is simpler than a PipeOut FIFO.
 
 ## Host control state machine
 
@@ -51,10 +51,10 @@ The host may send arm commands only in `ARMED`. Transition to `FAULT` and reques
 
 ## Integration order
 
-1. Reproduce the owner's existing XEM7310 USB-C program/run loop. Identify the A75/A200 variant and archive the working bitstream project.
-2. Connect the band adapter and save a short, consented raw recording locally. Print sample rate, units, missing-packet count, and timestamps. Do not commit raw biometric recordings to GitHub.
+1. **Done:** the XEM7310-A75 was programmed over USB-C with the new [packet receiver](fpga/README.md). FrontPanel enabled, and the PipeIn/WireOut test passed with a known packet and 252 live EMG packets.
+2. **Done:** connect the Kinesis band and save a short local raw recording. The three-second test captured 6,048 samples, with batch sequence, band timestamp, host receipt time, and connection ID preserved. Do not commit raw biometric recordings to GitHub.
 3. Show webcam landmarks and paired labels. Train a CPU decoder and control the virtual gripper.
-4. Implement PipeIn loopback, then fixed-point features, then model weights, then result WireOut. Check each stage against the integer reference on the same recording.
+4. **PipeIn packet check done:** implement fixed-point features, then model weights and result WireOut. Check each stage against the integer reference on the same recording.
 5. Integrate the Medra adapter in simulation or dry-run mode. Agree on allowed poses, command rate, gripper limits, and stop behavior with the Medra team.
 6. Run the one-person physical demo with an operator at the stop control. Then consider continuous arm movement and a second FPGA/band.
 

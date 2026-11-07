@@ -1,0 +1,799 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2022.2 (lin64) Build 3671981 Fri Oct 14 04:59:54 MDT 2022
+| Date         : Sat Nov  7 02:34:25 2026
+| Host         : sec-academic-1.int.seas.harvard.edu running 64-bit unknown
+| Command      : report_timing_summary -file /home/amcguinness/Neo/fpga/artifacts/timing.rpt
+| Design       : neo_packet_top
+| Device       : 7a75t-fgg484
+| Speed File   : -1  PRODUCTION 1.23 2018-06-13
+---------------------------------------------------------------------------------------------
+
+Timing Summary Report
+
+------------------------------------------------------------------------------------------------
+| Timer Settings
+| --------------
+------------------------------------------------------------------------------------------------
+
+  Enable Multi Corner Analysis               :  Yes
+  Enable Pessimism Removal                   :  Yes
+  Pessimism Removal Resolution               :  Nearest Common Node
+  Enable Input Delay Default Clock           :  No
+  Enable Preset / Clear Arcs                 :  No
+  Disable Flight Delays                      :  No
+  Ignore I/O Paths                           :  No
+  Timing Early Launch at Borrowing Latches   :  No
+  Borrow Time for Max Delay Exceptions       :  Yes
+  Merge Timing Exceptions                    :  Yes
+
+  Corner  Analyze    Analyze    
+  Name    Max Paths  Min Paths  
+  ------  ---------  ---------  
+  Slow    Yes        Yes        
+  Fast    Yes        Yes        
+
+
+------------------------------------------------------------------------------------------------
+| Report Methodology
+| ------------------
+------------------------------------------------------------------------------------------------
+
+No report available as report_methodology has not been run prior. Run report_methodology on the current design for the summary of methodology violations.
+
+
+
+check_timing report
+
+Table of Contents
+-----------------
+1. checking no_clock (1)
+2. checking constant_clock (0)
+3. checking pulse_width_clock (0)
+4. checking unconstrained_internal_endpoints (20)
+5. checking no_input_delay (1)
+6. checking no_output_delay (1)
+7. checking multiple_clock (0)
+8. checking generated_clocks (0)
+9. checking loops (0)
+10. checking partial_input_delay (0)
+11. checking partial_output_delay (0)
+12. checking latch_loops (0)
+
+1. checking no_clock (1)
+------------------------
+ There is 1 register/latch pin with no clock driven by root clock pin: host/core0/core0/a0/d0/lc4da648cb12eeeb24e4d199c1195ed93_reg[4]/Q (HIGH)
+
+
+2. checking constant_clock (0)
+------------------------------
+ There are 0 register/latch pins with constant_clock.
+
+
+3. checking pulse_width_clock (0)
+---------------------------------
+ There are 0 register/latch pins which need pulse_width check
+
+
+4. checking unconstrained_internal_endpoints (20)
+-------------------------------------------------
+ There are 2 pins that are not constrained for maximum delay. (HIGH)
+
+ There are 18 pins that are not constrained for maximum delay due to constant clock. (MEDIUM)
+
+
+5. checking no_input_delay (1)
+------------------------------
+ There is 1 input port with no input delay specified. (HIGH)
+
+ There are 0 input ports with no input delay but user has a false path constraint.
+
+
+6. checking no_output_delay (1)
+-------------------------------
+ There is 1 port with no output delay specified. (HIGH)
+
+ There are 0 ports with no output delay but user has a false path constraint
+
+ There are 0 ports with no output delay but with a timing clock defined on it or propagating through it
+
+
+7. checking multiple_clock (0)
+------------------------------
+ There are 0 register/latch pins with multiple clocks.
+
+
+8. checking generated_clocks (0)
+--------------------------------
+ There are 0 generated clocks that are not connected to a clock source.
+
+
+9. checking loops (0)
+---------------------
+ There are 0 combinational loops in the design.
+
+
+10. checking partial_input_delay (0)
+------------------------------------
+ There are 0 input ports with partial input delay specified.
+
+
+11. checking partial_output_delay (0)
+-------------------------------------
+ There are 0 ports with partial output delay specified.
+
+
+12. checking latch_loops (0)
+----------------------------
+ There are 0 combinational latch loops in the design through latch input
+
+
+
+------------------------------------------------------------------------------------------------
+| Design Timing Summary
+| ---------------------
+------------------------------------------------------------------------------------------------
+
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+      0.208        0.000                      0                 4119        0.061        0.000                      0                 4119        2.960        0.000                       0                  1529  
+
+
+All user specified timing constraints are met.
+
+
+------------------------------------------------------------------------------------------------
+| Clock Summary
+| -------------
+------------------------------------------------------------------------------------------------
+
+Clock          Waveform(ns)         Period(ns)      Frequency(MHz)
+-----          ------------         ----------      --------------
+okUH0          {0.000 4.960}        9.920           100.806         
+  mmcm0_clk0   {1.488 6.448}        9.920           100.806         
+  mmcm0_clkfb  {0.000 4.960}        9.920           100.806         
+
+
+------------------------------------------------------------------------------------------------
+| Intra Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+Clock              WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+-----              -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+okUH0                                                                                                                                                            2.960        0.000                       0                     1  
+  mmcm0_clk0         1.806        0.000                      0                 3955        0.061        0.000                      0                 3955        3.710        0.000                       0                  1525  
+  mmcm0_clkfb                                                                                                                                                    7.765        0.000                       0                     3  
+
+
+------------------------------------------------------------------------------------------------
+| Inter Clock Table
+| -----------------
+------------------------------------------------------------------------------------------------
+
+From Clock    To Clock          WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------    --------          -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+mmcm0_clk0    okUH0               4.607        0.000                      0                   35        1.029        0.000                      0                   35  
+okUH0         mmcm0_clk0          0.208        0.000                      0                   36        1.262        0.000                      0                   36  
+
+
+------------------------------------------------------------------------------------------------
+| Other Path Groups Table
+| -----------------------
+------------------------------------------------------------------------------------------------
+
+Path Group         From Clock         To Clock               WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints  
+----------         ----------         --------               -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------  
+**async_default**  mmcm0_clk0         mmcm0_clk0               5.831        0.000                      0                   93        0.433        0.000                      0                   93  
+
+
+------------------------------------------------------------------------------------------------
+| Timing Details
+| --------------
+------------------------------------------------------------------------------------------------
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  okUH0
+  To Clock:  okUH0
+
+Setup :           NA  Failing Endpoints,  Worst Slack           NA  ,  Total Violation           NA
+Hold  :           NA  Failing Endpoints,  Worst Slack           NA  ,  Total Violation           NA
+PW    :            0  Failing Endpoints,  Worst Slack        2.960ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Pulse Width Checks
+--------------------------------------------------------------------------------------
+Clock Name:         okUH0
+Waveform(ns):       { 0.000 4.960 }
+Period(ns):         9.920
+Sources:            { okUH[0] }
+
+Check Type        Corner  Lib Pin            Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location         Pin
+Min Period        n/a     MMCME2_ADV/CLKIN1  n/a            1.249         9.920       8.671      MMCME2_ADV_X0Y1  host/mmcm0/CLKIN1
+Max Period        n/a     MMCME2_ADV/CLKIN1  n/a            100.000       9.920       90.080     MMCME2_ADV_X0Y1  host/mmcm0/CLKIN1
+Low Pulse Width   Slow    MMCME2_ADV/CLKIN1  n/a            2.000         4.960       2.960      MMCME2_ADV_X0Y1  host/mmcm0/CLKIN1
+High Pulse Width  Slow    MMCME2_ADV/CLKIN1  n/a            2.000         4.960       2.960      MMCME2_ADV_X0Y1  host/mmcm0/CLKIN1
+
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  mmcm0_clk0
+  To Clock:  mmcm0_clk0
+
+Setup :            0  Failing Endpoints,  Worst Slack        1.806ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.061ns,  Total Violation        0.000ns
+PW    :            0  Failing Endpoints,  Worst Slack        3.710ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             1.806ns  (required time - arrival time)
+  Source:                 host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/CLKARDCLK
+                            (rising edge-triggered cell RAMB18E1 clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            host/core0/core0/a0/l37dbd1aafb403530c46407234a8f7286_reg[0]/CE
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             mmcm0_clk0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            9.920ns  (mmcm0_clk0 rise@11.408ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        7.560ns  (logic 3.442ns (45.527%)  route 4.118ns (54.473%))
+  Logic Levels:           4  (LUT4=1 LUT5=1 LUT6=1 RAMD32=1)
+  Clock Path Skew:        -0.068ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    -2.017ns = ( 9.391 - 11.408 ) 
+    Source Clock Delay      (SCD):    -1.306ns = ( 0.182 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    0.642ns
+  Clock Uncertainty:      0.073ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         1.037     2.525 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.233     3.758    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.069    -3.311 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.710    -1.600    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.096    -1.504 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.686     0.182    host/core0/core0/lec70dee01afd7ab45446d779af5292ff
+    RAMB18_X0Y23         RAMB18E1                                     r  host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/CLKARDCLK
+  -------------------------------------------------------------------    -------------------
+    RAMB18_X0Y23         RAMB18E1 (Prop_ramb18e1_CLKARDCLK_DOADO[4])
+                                                      2.454     2.636 r  host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/DOADO[4]
+                         net (fo=14, routed)          1.377     4.012    host/core0/core0/a0/pc0/upper_reg_banks/ADDRA0
+    SLICE_X8Y57          RAMD32 (Prop_ramd32_RADR0_O)
+                                                      0.150     4.162 f  host/core0/core0/a0/pc0/upper_reg_banks/RAMA/O
+                         net (fo=3, routed)           0.820     4.982    host/core0/core0/a0/pc0/data_path_loop[4].output_data.sy_kk_mux_lut/I0
+    SLICE_X9Y58          LUT5 (Prop_lut5_I0_O)        0.358     5.340 f  host/core0/core0/a0/pc0/data_path_loop[4].output_data.sy_kk_mux_lut/LUT5/O
+                         net (fo=20, routed)          0.755     6.095    host/core0/core0/a0/l91f05f26d7832afb9cfdc67ea9d72301[4]
+    SLICE_X9Y58          LUT6 (Prop_lut6_I0_O)        0.327     6.422 f  host/core0/core0/l37dbd1aafb403530c46407234a8f7286[7]_i_2/O
+                         net (fo=4, routed)           0.541     6.963    host/core0/core0/l37dbd1aafb403530c46407234a8f7286[7]_i_2_n_0
+    SLICE_X8Y58          LUT4 (Prop_lut4_I3_O)        0.153     7.116 r  host/core0/core0/l37dbd1aafb403530c46407234a8f7286[7]_i_1/O
+                         net (fo=8, routed)           0.626     7.742    host/core0/core0/a0/l37dbd1aafb403530c46407234a8f7286
+    SLICE_X9Y60          FDRE                                         r  host/core0/core0/a0/l37dbd1aafb403530c46407234a8f7286_reg[0]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                     11.408    11.408 r  
+    W19                                               0.000    11.408 r  okUH[0] (IN)
+                         net (fo=0)                   0.000    11.408    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.903    12.311 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.162    13.473    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.322     6.150 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.630     7.780    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.091     7.871 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.519     9.391    host/core0/core0/lec70dee01afd7ab45446d779af5292ff
+    SLICE_X9Y60          FDRE                                         r  host/core0/core0/a0/l37dbd1aafb403530c46407234a8f7286_reg[0]/C
+                         clock pessimism              0.642    10.033    
+                         clock uncertainty           -0.073     9.960    
+    SLICE_X9Y60          FDRE (Setup_fdre_C_CE)      -0.412     9.548    host/core0/core0/a0/l37dbd1aafb403530c46407234a8f7286_reg[0]
+  -------------------------------------------------------------------
+                         required time                          9.548    
+                         arrival time                          -7.742    
+  -------------------------------------------------------------------
+                         slack                                  1.806    
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.061ns  (arrival time - required time)
+  Source:                 host/core0/core0/a0/pc0/address_loop[6].pc_flop/C
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/ADDRARDADDR[10]
+                            (rising edge-triggered cell RAMB18E1 clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             mmcm0_clk0
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            0.000ns  (mmcm0_clk0 rise@1.488ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        0.302ns  (logic 0.141ns (46.718%)  route 0.161ns (53.282%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.057ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    -0.773ns = ( 0.715 - 1.488 ) 
+    Source Clock Delay      (SCD):    -0.577ns = ( 0.911 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    -0.254ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.265     1.753 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.440     2.193    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -2.375    -0.182 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.495     0.313    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.026     0.339 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.573     0.911    host/core0/core0/lec70dee01afd7ab45446d779af5292ff
+    SLICE_X9Y56          FDRE                                         r  host/core0/core0/a0/pc0/address_loop[6].pc_flop/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X9Y56          FDRE (Prop_fdre_C_Q)         0.141     1.052 r  host/core0/core0/a0/pc0/address_loop[6].pc_flop/Q
+                         net (fo=3, routed)           0.161     1.213    host/core0/core0/a0/ld431942cac34e5a074e76137c9872d1c[6]
+    RAMB18_X0Y23         RAMB18E1                                     r  host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/ADDRARDADDR[10]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.455     1.943 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.480     2.423    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -3.161    -0.738 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.540    -0.199    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.029    -0.170 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.885     0.715    host/core0/core0/lec70dee01afd7ab45446d779af5292ff
+    RAMB18_X0Y23         RAMB18E1                                     r  host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom/CLKARDCLK
+                         clock pessimism              0.254     0.969    
+    RAMB18_X0Y23         RAMB18E1 (Hold_ramb18e1_CLKARDCLK_ADDRARDADDR[10])
+                                                      0.183     1.152    host/core0/core0/a0/pm0/ram_1k_generate.v6.kcpsm6_rom
+  -------------------------------------------------------------------
+                         required time                         -1.152    
+                         arrival time                           1.213    
+  -------------------------------------------------------------------
+                         slack                                  0.061    
+
+
+
+
+
+Pulse Width Checks
+--------------------------------------------------------------------------------------
+Clock Name:         mmcm0_clk0
+Waveform(ns):       { 1.488 6.448 }
+Period(ns):         9.920
+Sources:            { host/mmcm0/CLKOUT0 }
+
+Check Type        Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location         Pin
+Min Period        n/a     RAMB18E1/CLKARDCLK  n/a            2.944         9.920       6.976      RAMB18_X0Y22     host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.mem/gbm.gbmg.gbmga.ngecc.bmg/inst_blk_mem_gen/gnbram.gnativebmg.native_blk_mem_gen/valid.cstr/ramloop[0].ram.r/prim_noinit.ram/DEVICE_7SERIES.NO_BMM_INFO.SDP.WIDE_PRIM18.ram/CLKARDCLK
+Max Period        n/a     MMCME2_ADV/CLKOUT0  n/a            213.360       9.920       203.440    MMCME2_ADV_X0Y1  host/mmcm0/CLKOUT0
+Low Pulse Width   Slow    RAMD64E/CLK         n/a            1.250         4.960       3.710      SLICE_X6Y81      fifo_reg_0_63_0_2/RAMA/CLK
+High Pulse Width  Slow    RAMD64E/CLK         n/a            1.250         4.960       3.710      SLICE_X6Y81      fifo_reg_0_63_0_2/RAMA/CLK
+
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  mmcm0_clkfb
+  To Clock:  mmcm0_clkfb
+
+Setup :           NA  Failing Endpoints,  Worst Slack           NA  ,  Total Violation           NA
+Hold  :           NA  Failing Endpoints,  Worst Slack           NA  ,  Total Violation           NA
+PW    :            0  Failing Endpoints,  Worst Slack        7.765ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Pulse Width Checks
+--------------------------------------------------------------------------------------
+Clock Name:         mmcm0_clkfb
+Waveform(ns):       { 0.000 4.960 }
+Period(ns):         9.920
+Sources:            { host/mmcm0/CLKFBOUT }
+
+Check Type  Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location         Pin
+Min Period  n/a     BUFG/I              n/a            2.155         9.920       7.765      BUFGCTRL_X0Y1    host/mmcm0fb_bufg/I
+Max Period  n/a     MMCME2_ADV/CLKFBIN  n/a            100.000       9.920       90.080     MMCME2_ADV_X0Y1  host/mmcm0/CLKFBIN
+
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  mmcm0_clk0
+  To Clock:  okUH0
+
+Setup :            0  Failing Endpoints,  Worst Slack        4.607ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        1.029ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             4.607ns  (required time - arrival time)
+  Source:                 host/iob_regs[14].regvalid/C
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            okUHU[14]
+                            (output port clocked by okUH0  {rise@0.000ns fall@4.960ns period=9.920ns})
+  Path Group:             okUH0
+  Path Type:              Max at Slow Process Corner
+  Requirement:            8.432ns  (okUH0 rise@9.920ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        2.916ns  (logic 2.915ns (99.966%)  route 0.001ns (0.034%))
+  Logic Levels:           1  (OBUFT=1)
+  Output Delay:           2.000ns
+  Clock Path Skew:        1.263ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.000ns = ( 9.920 - 9.920 ) 
+    Source Clock Delay      (SCD):    -1.263ns = ( 0.225 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.171ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.098ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         1.037     2.525 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.233     3.758    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.069    -3.311 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.710    -1.600    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.096    -1.504 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.730     0.225    host/okClk
+    OLOGIC_X0Y97         FDRE                                         r  host/iob_regs[14].regvalid/C
+  -------------------------------------------------------------------    -------------------
+    OLOGIC_X0Y97         FDRE (Prop_fdre_C_Q)         0.552     0.777 r  host/iob_regs[14].regvalid/Q
+                         net (fo=1, routed)           0.001     0.778    host/iob_regs[14].iobf0/T
+    R22                  OBUFT (TriStatD_obuft_T_O)
+                                                      2.363     3.141 r  host/iob_regs[14].iobf0/OBUFT/O
+                         net (fo=1, unset)            0.000     3.141    okUHU[14]
+    R22                                                               r  okUHU[14] (INOUT)
+  -------------------------------------------------------------------    -------------------
+
+                         (clock okUH0 rise edge)      9.920     9.920 r  
+                         clock pessimism              0.000     9.920    
+                         clock uncertainty           -0.171     9.749    
+                         output delay                -2.000     7.749    
+  -------------------------------------------------------------------
+                         required time                          7.749    
+                         arrival time                          -3.141    
+  -------------------------------------------------------------------
+                         slack                                  4.607    
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             1.029ns  (arrival time - required time)
+  Source:                 host/iob_regs[25].regvalid/C
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            okUHU[25]
+                            (output port clocked by okUH0  {rise@0.000ns fall@4.960ns period=9.920ns})
+  Path Group:             okUH0
+  Path Type:              Min at Fast Process Corner
+  Requirement:            -1.488ns  (okUH0 rise@0.000ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        0.768ns  (logic 0.767ns (99.870%)  route 0.001ns (0.130%))
+  Logic Levels:           1  (OBUFT=1)
+  Output Delay:           -0.500ns
+  Clock Path Skew:        0.556ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    0.000ns
+    Source Clock Delay      (SCD):    -0.556ns = ( 0.932 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    -0.000ns
+  Clock Uncertainty:      0.171ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.098ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.265     1.753 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.440     2.193    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -2.375    -0.182 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.495     0.313    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.026     0.339 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.594     0.932    host/okClk
+    OLOGIC_X0Y59         FDRE                                         r  host/iob_regs[25].regvalid/C
+  -------------------------------------------------------------------    -------------------
+    OLOGIC_X0Y59         FDRE (Prop_fdre_C_Q)         0.192     1.124 f  host/iob_regs[25].regvalid/Q
+                         net (fo=1, routed)           0.001     1.125    host/iob_regs[25].iobf0/T
+    T18                  OBUFT (TriStatE_obuft_T_O)
+                                                      0.575     1.700 r  host/iob_regs[25].iobf0/OBUFT/O
+                         net (fo=1, unset)            0.000     1.700    okUHU[25]
+    T18                                                               r  okUHU[25] (INOUT)
+  -------------------------------------------------------------------    -------------------
+
+                         (clock okUH0 rise edge)      0.000     0.000 r  
+                         clock pessimism              0.000     0.000    
+                         clock uncertainty            0.171     0.171    
+                         output delay                 0.500     0.671    
+  -------------------------------------------------------------------
+                         required time                         -0.671    
+                         arrival time                           1.700    
+  -------------------------------------------------------------------
+                         slack                                  1.029    
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+From Clock:  okUH0
+  To Clock:  mmcm0_clk0
+
+Setup :            0  Failing Endpoints,  Worst Slack        0.208ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        1.262ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.208ns  (required time - arrival time)
+  Source:                 okUHU[0]
+                            (input port clocked by okUH0  {rise@0.000ns fall@4.960ns period=9.920ns})
+  Destination:            host/iob_regs[0].regin0/D
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             mmcm0_clk0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            11.408ns  (mmcm0_clk0 rise@11.408ns - okUH0 rise@0.000ns)
+  Data Path Delay:        1.051ns  (logic 1.051ns (100.000%)  route 0.000ns (0.000%))
+  Logic Levels:           1  (IBUF=1)
+  Input Delay:            8.000ns
+  Clock Path Skew:        -1.967ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    -1.967ns = ( -0.479 - 1.488 ) 
+    Source Clock Delay      (SCD):    0.000ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.171ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.098ns
+  Timing Exception:       MultiCycle Path   Setup -end   2
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock okUH0 rise edge)      0.000     0.000 r  
+                         input delay                  8.000     8.000    
+    AB22                                              0.000     8.000 r  okUHU[0] (INOUT)
+                         net (fo=1, unset)            0.000     8.000    host/iob_regs[0].iobf0/IO
+    AB22                 IBUF (Prop_ibuf_I_O)         1.051     9.051 r  host/iob_regs[0].iobf0/IBUF/O
+                         net (fo=1, routed)           0.000     9.051    host/iobf0_o_0
+    ILOGIC_X0Y79         FDRE                                         r  host/iob_regs[0].regin0/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                     11.408    11.408 r  
+    W19                                               0.000    11.408 r  okUH[0] (IN)
+                         net (fo=0)                   0.000    11.408    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.903    12.311 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.162    13.473    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.322     6.150 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.630     7.780    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.091     7.871 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.570     9.441    host/okClk
+    ILOGIC_X0Y79         FDRE                                         r  host/iob_regs[0].regin0/C
+                         clock pessimism              0.000     9.441    
+                         clock uncertainty           -0.171     9.270    
+    ILOGIC_X0Y79         FDRE (Setup_fdre_C_D)       -0.011     9.259    host/iob_regs[0].regin0
+  -------------------------------------------------------------------
+                         required time                          9.259    
+                         arrival time                          -9.051    
+  -------------------------------------------------------------------
+                         slack                                  0.208    
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             1.262ns  (arrival time - required time)
+  Source:                 okUHU[24]
+                            (input port clocked by okUH0  {rise@0.000ns fall@4.960ns period=9.920ns})
+  Destination:            host/iob_regs[24].regin0/D
+                            (rising edge-triggered cell FDRE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             mmcm0_clk0
+  Path Type:              Hold (Min at Fast Process Corner)
+  Requirement:            1.488ns  (mmcm0_clk0 rise@11.408ns - okUH0 rise@9.920ns)
+  Data Path Delay:        0.200ns  (logic 0.200ns (100.000%)  route 0.000ns (0.000%))
+  Logic Levels:           1  (IBUF=1)
+  Input Delay:            2.000ns
+  Clock Path Skew:        -0.789ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    -0.789ns = ( 0.699 - 1.488 ) 
+    Source Clock Delay      (SCD):    0.000ns = ( 9.920 - 9.920 ) 
+    Clock Pessimism Removal (CPR):    -0.000ns
+  Clock Uncertainty:      0.171ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.098ns
+  Timing Exception:       MultiCycle Path   Setup -end   2
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock okUH0 rise edge)      9.920     9.920 r  
+                         input delay                  2.000    11.920    
+    P16                                               0.000    11.920 r  okUHU[24] (INOUT)
+                         net (fo=1, unset)            0.000    11.920    host/iob_regs[24].iobf0/IO
+    P16                  IBUF (Prop_ibuf_I_O)         0.200    12.120 r  host/iob_regs[24].iobf0/IBUF/O
+                         net (fo=1, routed)           0.000    12.120    host/iobf0_o_24
+    ILOGIC_X0Y52         FDRE                                         r  host/iob_regs[24].regin0/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                     11.408    11.408 r  
+    W19                                               0.000    11.408 r  okUH[0] (IN)
+                         net (fo=0)                   0.000    11.408    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.455    11.863 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.480    12.343    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -3.161     9.182 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.540     9.721    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.029     9.750 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.869    10.619    host/okClk
+    ILOGIC_X0Y52         FDRE                                         r  host/iob_regs[24].regin0/C
+                         clock pessimism              0.000    10.619    
+                         clock uncertainty            0.171    10.790    
+    ILOGIC_X0Y52         FDRE (Hold_fdre_C_D)         0.068    10.858    host/iob_regs[24].regin0
+  -------------------------------------------------------------------
+                         required time                        -10.858    
+                         arrival time                          12.120    
+  -------------------------------------------------------------------
+                         slack                                  1.262    
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+Path Group:  **async_default**
+From Clock:  mmcm0_clk0
+  To Clock:  mmcm0_clk0
+
+Setup :            0  Failing Endpoints,  Worst Slack        5.831ns,  Total Violation        0.000ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.433ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             5.831ns  (required time - arrival time)
+  Source:                 host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.g7serrst.gnsckt_wrst.rst_wr_reg2_inst/arststages_ff_reg[1]/C
+                            (rising edge-triggered cell FDPE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/wpntr/gcc0.gc0.count_d1_reg[1]/CLR
+                            (recovery check against rising-edge clock mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            9.920ns  (mmcm0_clk0 rise@11.408ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        3.587ns  (logic 0.773ns (21.552%)  route 2.814ns (78.448%))
+  Logic Levels:           1  (LUT3=1)
+  Clock Path Skew:        -0.024ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    -1.936ns = ( 9.472 - 11.408 ) 
+    Source Clock Delay      (SCD):    -1.271ns = ( 0.217 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    0.641ns
+  Clock Uncertainty:      0.073ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.128ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         1.037     2.525 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.233     3.758    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.069    -3.311 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.710    -1.600    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.096    -1.504 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.721     0.217    host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.g7serrst.gnsckt_wrst.rst_wr_reg2_inst/dest_clk
+    SLICE_X6Y58          FDPE                                         r  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.g7serrst.gnsckt_wrst.rst_wr_reg2_inst/arststages_ff_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X6Y58          FDPE (Prop_fdpe_C_Q)         0.478     0.695 f  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.g7serrst.gnsckt_wrst.rst_wr_reg2_inst/arststages_ff_reg[1]/Q
+                         net (fo=8, routed)           1.202     1.897    host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/rst_wr_reg2
+    SLICE_X5Y54          LUT3 (Prop_lut3_I0_O)        0.295     2.192 f  host/core0/core0/a0/cb0/U0/DEVICE_7SERIES.NO_BMM_INFO.SDP.WIDE_PRIM18.ram_i_3/O
+                         net (fo=27, routed)          1.611     3.804    host/core0/core0/a0/cb0/U0/DEVICE_7SERIES.NO_BMM_INFO.SDP.WIDE_PRIM18.ram_i_3_n_0
+    SLICE_X7Y55          FDCE                                         f  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/wpntr/gcc0.gc0.count_d1_reg[1]/CLR
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                     11.408    11.408 r  
+    W19                                               0.000    11.408 r  okUH[0] (IN)
+                         net (fo=0)                   0.000    11.408    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.903    12.311 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           1.162    13.473    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -7.322     6.150 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           1.630     7.780    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.091     7.871 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        1.600     9.472    host/core0/core0/a0/cb0/U0/clk
+    SLICE_X7Y55          FDCE                                         r  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/wpntr/gcc0.gc0.count_d1_reg[1]/C
+                         clock pessimism              0.641    10.113    
+                         clock uncertainty           -0.073    10.040    
+    SLICE_X7Y55          FDCE (Recov_fdce_C_CLR)     -0.405     9.635    host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/wpntr/gcc0.gc0.count_d1_reg[1]
+  -------------------------------------------------------------------
+                         required time                          9.635    
+                         arrival time                          -3.804    
+  -------------------------------------------------------------------
+                         slack                                  5.831    
+
+
+
+
+
+Min Delay Paths
+--------------------------------------------------------------------------------------
+Slack (MET) :             0.433ns  (arrival time - required time)
+  Source:                 host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/grstd1.grst_full.grst_f.rst_d2_reg/C
+                            (rising edge-triggered cell FDPE clocked by mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Destination:            host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwss.wsts/ram_full_fb_i_reg/PRE
+                            (removal check against rising-edge clock mmcm0_clk0  {rise@1.488ns fall@6.448ns period=9.920ns})
+  Path Group:             **async_default**
+  Path Type:              Removal (Min at Fast Process Corner)
+  Requirement:            0.000ns  (mmcm0_clk0 rise@1.488ns - mmcm0_clk0 rise@1.488ns)
+  Data Path Delay:        0.324ns  (logic 0.128ns (39.554%)  route 0.196ns (60.446%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.040ns (DCD - SCD - CPR)
+    Destination Clock Delay (DCD):    -0.783ns = ( 0.705 - 1.488 ) 
+    Source Clock Delay      (SCD):    -0.549ns = ( 0.939 - 1.488 ) 
+    Clock Pessimism Removal (CPR):    -0.275ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.265     1.753 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.440     2.193    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -2.375    -0.182 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.495     0.313    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.026     0.339 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.601     0.939    host/core0/core0/a0/cb0/U0/clk
+    SLICE_X4Y54          FDPE                                         r  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/grstd1.grst_full.grst_f.rst_d2_reg/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X4Y54          FDPE (Prop_fdpe_C_Q)         0.128     1.067 f  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/grstd1.grst_full.grst_f.rst_d2_reg/Q
+                         net (fo=3, routed)           0.196     1.263    host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/rst_d2
+    SLICE_X3Y54          FDPE                                         f  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwss.wsts/ram_full_fb_i_reg/PRE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm0_clk0 rise edge)
+                                                      1.488     1.488 r  
+    W19                                               0.000     1.488 r  okUH[0] (IN)
+                         net (fo=0)                   0.000     1.488    host/okUH[0]
+    W19                  IBUF (Prop_ibuf_I_O)         0.455     1.943 r  host/hi_clk_bufg/O
+                         net (fo=1, routed)           0.480     2.423    host/okUH0_ibufg
+    MMCME2_ADV_X0Y1      MMCME2_ADV (Prop_mmcme2_adv_CLKIN1_CLKOUT0)
+                                                     -3.161    -0.738 r  host/mmcm0/CLKOUT0
+                         net (fo=1, routed)           0.540    -0.199    host/mmcm0_clk0
+    BUFGCTRL_X0Y0        BUFG (Prop_bufg_I_O)         0.029    -0.170 r  host/mmcm0_bufg/O
+                         net (fo=1523, routed)        0.875     0.705    host/core0/core0/a0/cb0/U0/clk
+    SLICE_X3Y54          FDPE                                         r  host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwss.wsts/ram_full_fb_i_reg/C
+                         clock pessimism              0.275     0.979    
+    SLICE_X3Y54          FDPE (Remov_fdpe_C_PRE)     -0.149     0.830    host/core0/core0/a0/cb0/U0/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.wr/gwss.wsts/ram_full_fb_i_reg
+  -------------------------------------------------------------------
+                         required time                         -0.830    
+                         arrival time                           1.263    
+  -------------------------------------------------------------------
+                         slack                                  0.433    
+
+
+
+
+

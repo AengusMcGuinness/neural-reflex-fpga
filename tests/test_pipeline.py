@@ -15,7 +15,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(starts, [0, 4])
         self.assertEqual(targets.tolist(), [0, 1])
         self.assertEqual(features.shape, (2, 16))
-        self.assertAlmostEqual(features[0, 0], 1.5)
+        self.assertAlmostEqual(features[0, 0], 1.0)
         self.assertAlmostEqual(features[0, 8], 1.0)
 
     def test_holdout_round_is_unseen_and_decoder_separates_signal(self):

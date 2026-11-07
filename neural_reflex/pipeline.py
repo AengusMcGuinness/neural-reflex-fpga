@@ -44,7 +44,7 @@ def load_rows(path):
 
 
 def window_features(rows, window_samples, hop_samples, labeled=False):
-    """MAV and mean waveform length for each of eight channels."""
+    """Mean absolute deviation and waveform length for eight raw ADC channels."""
     if window_samples < 2 or hop_samples < 1:
         raise ValueError("window needs at least two samples and a positive hop")
     features, targets, rounds, starts = [], [], [], []
@@ -58,7 +58,8 @@ def window_features(rows, window_samples, hop_samples, labeled=False):
             targets.append(float(segment[0]["label"]))
             rounds.append(segment[0].get("round"))
         signal = np.asarray([row["emg"] for row in segment], dtype=np.float64)
-        mav = np.mean(np.abs(signal), axis=0)
+        # Kinesis sends unsigned ADC counts, so remove each window's DC offset.
+        mav = np.mean(np.abs(signal - np.mean(signal, axis=0)), axis=0)
         waveform_length = np.mean(np.abs(np.diff(signal, axis=0)), axis=0)
         features.append(np.concatenate((mav, waveform_length)))
         starts.append(start)
@@ -98,7 +99,7 @@ def fit_decoder(features, targets, train_mask, regularization=1.0):
                               augmented.T @ train_y)
     return {"mean": mean.tolist(), "scale": scale.tolist(),
             "bias": float(weights[0]), "weights": weights[1:].tolist(),
-            "features": "8x mean absolute value, then 8x mean waveform length"}
+            "features": "8x mean absolute deviation, then 8x mean waveform length"}
 
 
 def predict(model, features):
