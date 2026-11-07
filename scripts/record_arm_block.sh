@@ -34,5 +34,6 @@ cleanup() {
   kill "$emg_pid" "$arm_pid" 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
-# Closing the camera window (q) ends the block for both recorders.
+# The camera window guides a ~2 minute session and stops by itself (or press q);
+# either way that ends the block for both recorders.
 wait "$arm_pid" || true

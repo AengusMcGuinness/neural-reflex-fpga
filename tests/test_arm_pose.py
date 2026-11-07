@@ -58,6 +58,42 @@ class ArmAngleTests(unittest.TestCase):
         self.assertIsNone(arm_row(1.0, "b", "right", None, None)["angles"])
 
 
+class GuideTests(unittest.TestCase):
+    def test_protocol_steps_and_time_left(self):
+        from neural_reflex.arm_pose import PROTOCOL, protocol_step
+        total = sum(step[2] for step in PROTOCOL)
+        first = protocol_step(0.0)
+        self.assertEqual(first[1], "ready")
+        self.assertAlmostEqual(first[4], total)
+        sync = protocol_step(PROTOCOL[0][2] + 1.0)
+        self.assertEqual(sync[1], "sync")
+        self.assertAlmostEqual(sync[3], PROTOCOL[1][2] - 1.0)
+        self.assertIsNone(protocol_step(total + 0.01))
+
+    def test_rows_carry_the_cue(self):
+        self.assertEqual(arm_row(1.0, "b", "right", None, None, cue="elbow")["cue"], "elbow")
+
+    def test_stream_watch_sees_growing_files(self):
+        import tempfile
+        from pathlib import Path
+        from neural_reflex.arm_pose import StreamWatch
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            watch = StreamWatch(folder)
+            self.assertFalse(watch.update(10.0)["emg"])
+            (folder / "emg.jsonl").write_text("a\n")
+            self.assertTrue(watch.update(11.0)["emg"])
+            self.assertFalse(watch.update(12.0)["emg"])     # stopped growing
+            self.assertFalse(watch.update(13.0)["motion"])
+
+    def test_guide_draws_on_a_frame(self):
+        from neural_reflex.arm_pose import draw_guide, protocol_step
+        frame = np.zeros((540, 960, 3), dtype=np.uint8)
+        draw_guide(frame, protocol_step(30.0), {"emg": True, "motion": False}, True, "arm-reach")
+        self.assertGreater(frame[-60:].sum(), 0)
+        draw_guide(frame, None, {}, False, "arm-reach")
+
+
 class MotionRecordingTests(unittest.TestCase):
     def test_emg_reader_keeps_connection_and_passes_motion(self):
         hello = {"type": "hello", "payload": {"status": {"band_connection_id": "abc"}}}

@@ -325,7 +325,8 @@ def record_emg(args):
 
 def record_arm(args):
     from .arm_pose import record_arm_pose
-    count = record_arm_pose(args.output, args.camera, args.block, args.model, args.side)
+    count = record_arm_pose(args.output, args.camera, args.block, args.model, args.side,
+                            guided=not args.free)
     print(f"Wrote {count} arm pose frames to {args.output}", file=sys.stderr)
 
 
@@ -406,6 +407,8 @@ def main():
     arm_recorder.add_argument("--side", choices=("left", "right"), default="right",
                               help="the arm wearing the band")
     arm_recorder.add_argument("--model", default="models/pose_landmarker_full.task")
+    arm_recorder.add_argument("--free", action="store_true",
+                              help="no guided steps or time limit; stop with q")
     arm_recorder.set_defaults(func=record_arm)
     args = parser.parse_args()
     try:
