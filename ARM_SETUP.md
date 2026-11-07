@@ -57,19 +57,35 @@ From the Neo folder on the Mac connected to the arm, run:
 
 Open [http://127.0.0.1:8767/](http://127.0.0.1:8767/) on that Mac. The page
 shows each joint's measured position, configured limits, operating mode,
-voltage, temperature, and torque state. Select **Position control**, turn on
-torque for **one joint**, then use its `−` and `+` buttons, target slider, or
-exact tick input. The slider sends its target when released. Start with a
-5-tick step and keep the arm's movement area clear. **Free / manual** and
-**Stop all motors** turn off torque so the arm can be moved by hand. Torque
-also turns off after 15 seconds without a movement command or when the
-server stops with Ctrl+C.
+voltage, temperature, and torque state. Click **Enable motor** beside the
+joint you want to move. Drag its slider for continuous position control;
+the newest target replaces the previous target while you drag. Click `−`
+or `+` for a fine nudge, or hold either button for sustained movement and
+release to pause. Exact tick input remains available.
+
+Choose **Fine**, **Normal**, or **Fast** speed (60, 180, or 360 encoder ticks
+per second, approximately 5, 16, or 32 degrees per second). The default
+**Full range** slider covers the motor's configured limits; **Fine range**
+zooms the slider around the current position for small adjustments. These
+are stored motor limits, not collision detection: watch the arm and keep
+its movement area clear, especially near its mechanical stops.
+
+**Pause movement** cancels the ramp while enabled motors continue holding
+position. **Free / manual** and **Stop all motors** turn torque off so the
+arm can be moved by hand. The page stops on losing focus or becoming hidden.
+During movement the server requires a browser heartbeat within 0.8 seconds;
+a lost control connection turns every motor off. Torque also turns off
+after 15 seconds without a movement command or when the server stops with
+Ctrl+C. Set the arm where it can rest safely when torque turns off.
 
 The server binds only to `127.0.0.1`. It starts with all torque off, checks
-joint limits, allows at most 20 ticks per step and 160 ticks of travel per
-joint from the pose where that joint's torque was enabled. Slider targets are
-ramped in 20-tick increments and checked against measured position. Set the
-arm in a pose where it can rest safely when torque turns off. The
+joint limits, and ramps targets with a bounded speed and acceleration.
+Each motor write changes its commanded position by no more than 20 ticks.
+A background loop runs approximately every 20 ms, so target requests do not
+block Stop or new slider targets. If measured position falls more than 60
+ticks behind, the ramp waits for the servo; lag lasting 0.5 seconds causes a
+fault and torque-off. Stops invalidate pending targets and enable requests.
+The
 shoulder-pan and shoulder-lift controls have been checked on the physical
 arm; the other four controls are exposed through the same motor bus but have
 not yet been physically jogged.
@@ -109,8 +125,8 @@ shoulder_pan -5
 stop
 ```
 
-The web page uses larger 20-tick steps and permits up to 160 ticks of travel
-from its starting pose. The arm port on the tested Mac was
+The web page supports continuous movement within the motor's configured
+limits, with optional fine steps. The arm port on the tested Mac was
 `/dev/cu.usbmodem5CE51146561`, but USB port names can change after
 reconnection, so run `ports` if it disappears.
 

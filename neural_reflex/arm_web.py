@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+import math
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -9,24 +11,39 @@ import secrets
 import threading
 import time
 
-from .leader_arm import JOINTS, JogSession, disable_all_torque, inspect
+from .leader_arm import JOINTS, disable_all_torque, inspect, validate_motion_state
 
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web" / "arm"
 
 
 class ArmController:
-    """Serialize motor commands, bound each joint, and stop on faults."""
+    """Latest-target position control with a bounded, interruptible motion ramp."""
 
-    def __init__(self, bus, *, max_step: int = 20, max_travel: int = 160,
+    SPEEDS = {"fine": 60, "normal": 180, "fast": 360}
+    acceleration = 720.0
+    motion_lease_seconds = 0.8
+    tracking_tolerance = 60
+    tracking_timeout = 0.5
+
+    def __init__(self, bus, *, max_step: int = 20, max_travel: int | None = None,
                  timeout: float = 15.0):
+        if not 1 <= max_step <= 20:
+            raise ValueError("max_step must be 1..20 ticks")
+        if max_travel is not None and max_travel < 1:
+            raise ValueError("max_travel must be positive")
         self.bus = bus
         self.lock = threading.RLock()
         self.cancel = threading.Event()
+        self.stop_pending = threading.Event()
         self.max_step = max_step
         self.max_travel = max_travel
         self.timeout = timeout
         self.deadline: float | None = None
+        self.lease_deadline: float | None = None
+        self.last_step = time.monotonic()
+        self.motion_epoch = 0
+        self.speed = "normal"
         self.notice = "Motors are off. Enable a joint to start."
         self.control_mode = "manual"
         self.fault: str | None = None
@@ -34,20 +51,37 @@ class ArmController:
         self.enabled: set[str] = set()
         self.starts: dict[str, int] = {}
         self.goals: dict[str, int] = {}
+        self.targets: dict[str, int] = {}
+        self.command_positions: dict[str, float] = {}
+        self.velocities: dict[str, float] = {}
+        self.tracking_since: dict[str, float] = {}
         self.telemetry: dict[str, dict] = {}
         self.telemetry_due = 0.0
+        self.last_states = {}
         self.bus.connect()
         try:
             self.last_states = inspect(bus)
-            JogSession(bus, self.last_states, max_step, max_travel)
+            validate_motion_state(self.last_states)
+        except Exception as error:
+            # Keep the page available for Stop and Retry after a latched servo fault.
+            self._fault_locked(error)
         except BaseException:
             disable_all_torque(self.bus)
             self.bus.disconnect(disable_torque=False)
             raise
 
+    def _moving_locked(self) -> bool:
+        return any(self.goals[name] != self.targets[name] for name in self.enabled
+                   if name in self.targets and name in self.goals)
+
     def _stop_locked(self, notice: str) -> dict[str, str]:
+        self.motion_epoch += 1
+        self.targets.clear()
+        self.velocities.clear()
+        self.command_positions.clear()
+        self.tracking_since.clear()
+        self.deadline = self.lease_deadline = None
         errors = disable_all_torque(self.bus)
-        self.deadline = None
         self.control_mode = "manual"
         self.torque_unknown = bool(errors)
         if errors:
@@ -70,29 +104,23 @@ class ArmController:
         else:
             self.fault += " Motors are off. Clear the fault before retrying."
 
-    def _fault_status_locked(self) -> dict:
-        return {
-            "fault": self.fault,
-            "stale": True,
-            "armed": False,
-            "control_mode": self.control_mode,
-            "torque_unknown": self.torque_unknown,
-            "remaining_seconds": 0,
-            "max_step": self.max_step,
-            "max_travel": self.max_travel,
-            "notice": self.fault,
-            "joints": [self._joint_data(name, state, stale=True)
-                       for name, state in self.last_states.items()],
-        }
+    def _bounds_locked(self, name: str) -> tuple[int, int]:
+        state = self.last_states[name]
+        if self.max_travel is None:
+            return state.minimum, state.maximum
+        start = self.starts.get(name, state.position)
+        return (max(state.minimum, start - self.max_travel),
+                min(state.maximum, start + self.max_travel))
 
     def _joint_data(self, name, state, *, stale=False) -> dict:
-        start = self.starts.get(name, state.position)
-        lower = max(state.minimum, start - self.max_travel)
-        upper = min(state.maximum, start + self.max_travel)
+        lower, upper = self._bounds_locked(name)
         extra = self.telemetry.get(name, {})
+        target = self.targets.get(name, state.position)
+        commanded = self.goals.get(name, state.position)
         return {"name": name, "position": state.position,
                 "minimum": state.minimum, "maximum": state.maximum,
-                "target": self.goals.get(name, state.position),
+                "target": target, "commanded_position": commanded,
+                "moving": not stale and name in self.enabled and target != commanded,
                 "target_minimum": lower, "target_maximum": upper,
                 "torque_enabled": None if stale else state.torque_enabled,
                 "operating_mode": state.operating_mode,
@@ -100,6 +128,25 @@ class ArmController:
                 "temperature_c": extra.get("temperature_c"),
                 "torque_limit": extra.get("torque_limit"),
                 "max_torque_limit": extra.get("max_torque_limit")}
+
+    def _snapshot_locked(self) -> dict:
+        stale = bool(self.fault)
+        return {
+            "fault": self.fault, "stale": stale,
+            "armed": bool(self.enabled) and not stale,
+            "control_mode": self.control_mode,
+            "torque_unknown": self.torque_unknown,
+            "motion_epoch": self.motion_epoch,
+            "moving": not stale and self._moving_locked(),
+            "speed": self.speed,
+            "max_speed_ticks_per_second": self.SPEEDS[self.speed],
+            "remaining_seconds": (max(0, round(self.deadline - time.monotonic(), 1))
+                                  if self.enabled and self.deadline else 0),
+            "max_step": self.max_step, "max_travel": self.max_travel,
+            "notice": self.fault or self.notice,
+            "joints": [self._joint_data(name, state, stale=stale)
+                       for name, state in self.last_states.items()],
+        }
 
     def _read_telemetry_locked(self) -> None:
         if time.monotonic() < self.telemetry_due:
@@ -119,43 +166,39 @@ class ArmController:
         self.telemetry = telemetry
         self.telemetry_due = time.monotonic() + 5
 
-    def expire(self) -> None:
+    def expire(self, now: float | None = None) -> None:
         with self.lock:
-            if self.enabled and self.deadline is not None:
-                if time.monotonic() >= self.deadline:
-                    self.cancel.set()
-                    errors = self._stop_locked("Motors turned off after inactivity.")
-                    if errors:
-                        self.fault = ("Could not verify torque off after inactivity: "
-                                      + ", ".join(errors))
+            now = time.monotonic() if now is None else now
+            if self.fault or not self.enabled:
+                return
+            notice = None
+            if self._moving_locked() and (self.lease_deadline is None or
+                                          now >= self.lease_deadline):
+                notice = "Motors stopped: live control connection timed out."
+            elif self.deadline is not None and now >= self.deadline:
+                notice = "Motors turned off after inactivity."
+            if notice:
+                self.cancel.set()
+                errors = self._stop_locked(notice)
+                if errors:
+                    self.fault = ("Could not verify torque off: " + ", ".join(errors)
+                                  + "; disconnect 12 V power.")
 
     def _status_locked(self) -> dict:
         if self.fault:
-            return self._fault_status_locked()
+            return self._snapshot_locked()
         try:
             states = inspect(self.bus)
             for name, state in states.items():
                 if state.torque_enabled != (name in self.enabled):
                     raise RuntimeError("Motor torque changed outside this control session.")
+                if name in self.enabled and state.operating_mode != 0:
+                    raise RuntimeError(f"{name} left position mode")
             self._read_telemetry_locked()
+            self.last_states = states
         except Exception as error:
             self._fault_locked(error)
-            return self._fault_status_locked()
-        self.last_states = states
-        return {
-            "fault": None,
-            "stale": False,
-            "armed": bool(self.enabled),
-            "control_mode": self.control_mode,
-            "torque_unknown": False,
-            "remaining_seconds": (max(0, round(self.deadline - time.monotonic(), 1))
-                                  if self.enabled and self.deadline else 0),
-            "max_step": self.max_step,
-            "max_travel": self.max_travel,
-            "notice": self.notice,
-            "joints": [self._joint_data(name, state)
-                       for name, state in states.items()],
-        }
+        return self._snapshot_locked()
 
     def status(self) -> dict:
         with self.lock:
@@ -175,17 +218,23 @@ class ArmController:
         if int(self.bus.read("Torque_Enable", name, normalize=False)) != 1:
             raise RuntimeError(f"{name} torque did not enable")
         self.enabled.add(name)
-        self.starts[name] = state.position
-        self.goals[name] = state.position
-        self.deadline = time.monotonic() + self.timeout
+        self.starts[name] = self.goals[name] = self.targets[name] = state.position
+        self.command_positions[name] = float(state.position)
+        self.velocities[name] = 0.0
+        self.last_step = time.monotonic()
+        self.deadline = self.last_step + self.timeout
 
-    def torque(self, name: str, enabled: bool) -> dict:
+    def torque(self, name: str, enabled: bool, motion_epoch: int | None = None) -> dict:
         if name not in JOINTS or type(enabled) is not bool:
             raise ValueError("Choose a joint and true or false for torque.")
         with self.lock:
-            if self.fault:
-                return self._fault_status_locked()
             self.expire()
+            if enabled:
+                self._check_epoch_locked(motion_epoch)
+                if self.stop_pending.is_set():
+                    raise RuntimeError("Stop is in progress. Wait for motors off before enabling.")
+            if self.fault:
+                return self._snapshot_locked()
             if enabled:
                 self.cancel.clear()
                 self.control_mode = "position"
@@ -193,84 +242,163 @@ class ArmController:
                     self._enable_joint_locked(name)
                 except Exception as error:
                     self._fault_locked(error)
-                    return self._fault_status_locked()
-                self.notice = f"{name} is holding its measured position."
+                    return self._snapshot_locked()
+                self.notice = f"{name} enabled. Drag its slider to move."
             else:
+                self.motion_epoch += 1
                 try:
                     self.bus.disable_torque(name)
                     if int(self.bus.read("Torque_Enable", name, normalize=False)) != 0:
                         raise RuntimeError(f"{name} torque did not turn off")
                 except Exception as error:
                     self._fault_locked(error)
-                    return self._fault_status_locked()
+                    return self._snapshot_locked()
                 self.enabled.discard(name)
-                self.starts.pop(name, None)
-                self.goals.pop(name, None)
+                for values in (self.starts, self.goals, self.targets,
+                               self.command_positions, self.velocities, self.tracking_since):
+                    values.pop(name, None)
                 if not self.enabled:
-                    self.deadline = None
+                    self.deadline = self.lease_deadline = None
                 self.notice = f"{name} torque is off."
             return self._status_locked()
 
-    def _move_to_locked(self, name: str, target: int) -> dict:
-        if name not in self.enabled:
+    def _check_epoch_locked(self, motion_epoch: int) -> None:
+        if type(motion_epoch) is not int or motion_epoch != self.motion_epoch:
+            raise ValueError("Control session changed. Read the current state before moving.")
+
+    def _queue_target_locked(self, name: str, target: int) -> dict:
+        if name not in self.enabled or self.cancel.is_set():
             raise RuntimeError(f"Enable {name} torque first.")
-        state = self.last_states[name]
-        lower = max(state.minimum, self.starts[name] - self.max_travel)
-        upper = min(state.maximum, self.starts[name] + self.max_travel)
+        lower, upper = self._bounds_locked(name)
         if not lower <= target <= upper:
             raise ValueError(f"{name} target must be {lower}..{upper} ticks")
-        if self.goals[name] == target:
-            return self._status_locked()
-        while self.goals[name] != target:
-            if self.cancel.is_set():
-                self._stop_locked("Motors are off.")
-                return self._status_locked()
-            difference = target - self.goals[name]
-            step = max(-self.max_step, min(self.max_step, difference))
-            next_goal = self.goals[name] + step
-            try:
-                self.bus.write("Goal_Position", name, next_goal, normalize=False)
-                self.goals[name] = next_goal
-                time.sleep(0.2)
-                measured = int(self.bus.read("Present_Position", name,
-                                             normalize=False))
-            except Exception as error:
-                self._fault_locked(error)
-                return self._fault_status_locked()
-            if abs(next_goal - measured) > 60:
-                self._fault_locked(f"{name} did not track its target")
-                return self._fault_status_locked()
-            self.deadline = time.monotonic() + self.timeout
-        self.notice = f"{name}: target {target}, measured {measured}."
-        return self._status_locked()
+        self.targets[name] = target
+        now = time.monotonic()
+        self.lease_deadline = now + self.motion_lease_seconds
+        self.deadline = now + self.timeout
+        self.notice = f"{name}: moving toward {target} ticks."
+        return self._snapshot_locked()
 
-    def jog(self, name: str, delta: int) -> dict:
+    def jog(self, name: str, delta: int, motion_epoch: int) -> dict:
         if name not in JOINTS or type(delta) is not int or not 1 <= abs(delta) <= self.max_step:
             raise ValueError(f"Choose a joint and a step of 1..{self.max_step} ticks.")
         with self.lock:
             self.expire()
+            self._check_epoch_locked(motion_epoch)
             if self.fault:
-                return self._fault_status_locked()
-            return self._move_to_locked(name, self.goals.get(name, 0) + delta)
+                return self._snapshot_locked()
+            return self._queue_target_locked(name, self.targets.get(name, 0) + delta)
 
-    def target(self, name: str, target: int) -> dict:
+    def target(self, name: str, target: int, motion_epoch: int) -> dict:
         if name not in JOINTS or type(target) is not int:
             raise ValueError("Choose a joint and an integer target tick.")
         with self.lock:
             self.expire()
+            self._check_epoch_locked(motion_epoch)
             if self.fault:
-                return self._fault_status_locked()
-            return self._move_to_locked(name, target)
+                return self._snapshot_locked()
+            return self._queue_target_locked(name, target)
+
+    def heartbeat(self, motion_epoch: int) -> dict:
+        with self.lock:
+            self.expire()
+            self._check_epoch_locked(motion_epoch)
+            if not self.fault and self.enabled and not self.cancel.is_set():
+                self.lease_deadline = time.monotonic() + self.motion_lease_seconds
+            return self._snapshot_locked()
+
+    def pause(self, motion_epoch: int) -> dict:
+        with self.lock:
+            self._check_epoch_locked(motion_epoch)
+            self.motion_epoch += 1
+            for name in self.enabled:
+                if name in self.goals:
+                    self.targets[name] = self.goals[name]
+                    self.command_positions[name] = float(self.goals[name])
+                    self.velocities[name] = 0.0
+            self.lease_deadline = None
+            self.notice = "Movement paused; enabled motors still hold position."
+            return self._snapshot_locked()
+
+    def set_speed(self, speed: str) -> dict:
+        if speed not in self.SPEEDS:
+            raise ValueError("Choose fine, normal or fast speed.")
+        with self.lock:
+            self.speed = speed
+            return self._snapshot_locked()
+
+    def motion_step(self, now: float | None = None) -> None:
+        """Advance one small ramp step. Serial writes never wait for a whole move."""
+        with self.lock:
+            now = time.monotonic() if now is None else now
+            dt = max(0.0, min(0.05, now - self.last_step))
+            self.last_step = now
+            self.expire(now)
+            if dt == 0 or self.fault or self.cancel.is_set() or not self.enabled:
+                return
+            try:
+                for name in tuple(self.enabled):
+                    if self.cancel.is_set():
+                        return
+                    measured = int(self.bus.read("Present_Position", name, normalize=False))
+                    self.last_states[name] = replace(self.last_states[name], position=measured)
+                    error = abs(self.goals[name] - measured)
+                    if error > self.tracking_tolerance:
+                        since = self.tracking_since.setdefault(name, now)
+                        if now - since >= self.tracking_timeout:
+                            raise RuntimeError(f"{name} is not tracking its target; check for obstruction")
+                        # Let the servo catch up before commanding more travel.
+                        self.velocities[name] = 0.0
+                        continue
+                    self.tracking_since.pop(name, None)
+                    difference = self.targets[name] - self.command_positions[name]
+                    if abs(difference) < 0.001:
+                        self.velocities[name] = 0.0
+                        continue
+                    # A reversed slider must not send more travel in the old direction.
+                    if self.velocities[name] * difference < 0:
+                        self.velocities[name] = 0.0
+                    self.velocities[name] = max(-self.SPEEDS[self.speed],
+                                               min(self.SPEEDS[self.speed], self.velocities[name]))
+                    desired_velocity = math.copysign(min(self.SPEEDS[self.speed],
+                        math.sqrt(2 * self.acceleration * abs(difference))), difference)
+                    dv = desired_velocity - self.velocities[name]
+                    velocity = self.velocities[name] + max(-self.acceleration * dt,
+                                                           min(self.acceleration * dt, dv))
+                    movement = velocity * dt
+                    next_position = self.command_positions[name] + movement
+                    if (difference > 0 and next_position >= self.targets[name]) or (
+                            difference < 0 and next_position <= self.targets[name]):
+                        next_position = float(self.targets[name])
+                        velocity = 0.0
+                    lower, upper = self._bounds_locked(name)
+                    next_position = max(lower, min(upper, next_position))
+                    next_position = max(self.goals[name] - self.max_step,
+                                        min(self.goals[name] + self.max_step, next_position))
+                    next_goal = round(next_position)
+                    next_goal = max(self.goals[name] - self.max_step,
+                                    min(self.goals[name] + self.max_step, next_goal))
+                    if next_goal != self.goals[name]:
+                        self.bus.write("Goal_Position", name, next_goal, normalize=False)
+                        self.goals[name] = next_goal
+                        self.deadline = now + self.timeout
+                    self.command_positions[name] = next_position
+                    self.velocities[name] = velocity
+            except Exception as error:
+                self._fault_locked(error)
 
     def stop(self) -> dict:
+        self.stop_pending.set()
         self.cancel.set()
         with self.lock:
-            errors = self._stop_locked("Motors are off.")
-            self.control_mode = "manual"
-            if errors:
-                self.fault = ("Could not verify torque off for "
-                              + ", ".join(errors) + "; disconnect 12 V power.")
-            return self._status_locked()
+            try:
+                errors = self._stop_locked("Motors are off.")
+                if errors:
+                    self.fault = ("Could not verify torque off for "
+                                  + ", ".join(errors) + "; disconnect 12 V power.")
+                return self._status_locked()
+            finally:
+                self.stop_pending.clear()
 
     def set_mode(self, mode: str) -> dict:
         if mode not in ("manual", "position"):
@@ -279,34 +407,33 @@ class ArmController:
             return self.stop()
         with self.lock:
             if self.fault:
-                return self._fault_status_locked()
+                return self._snapshot_locked()
             self.control_mode = "position"
             self.notice = "Position control selected; enable joints individually."
             return self._status_locked()
 
     def recover(self) -> dict:
-        """Turn every joint off before clearing a fault after power cycling."""
         self.cancel.set()
         with self.lock:
             errors = self._stop_locked("Checking the arm after its fault.")
             if errors:
                 self.fault = ("Still cannot turn off " + ", ".join(errors)
                               + "; disconnect 12 V power and check the arm.")
-                return self._fault_status_locked()
+                return self._snapshot_locked()
             try:
                 states = inspect(self.bus)
-                JogSession(self.bus, states, self.max_step, self.max_travel)
+                validate_motion_state(states)
             except Exception as error:
                 self.fault = f"Motor fault persists: {str(error).splitlines()[0]}"
-                return self._fault_status_locked()
+                return self._snapshot_locked()
             self.last_states = states
             self.fault = None
-            self.control_mode = "manual"
             self.cancel.clear()
             self.notice = "Arm reconnected; motors are off."
             return self._status_locked()
 
     def close(self) -> None:
+        self.stop_pending.set()
         self.cancel.set()
         with self.lock:
             try:
@@ -382,11 +509,18 @@ def make_handler(controller: ArmController, token: str, http_port: int):
                 if not isinstance(data, dict):
                     raise ValueError("Expected a JSON object")
                 if self.path == "/api/jog":
-                    result = controller.jog(data.get("joint"), data.get("delta"))
+                    result = controller.jog(data.get("joint"), data.get("delta"), data.get("motion_epoch"))
                 elif self.path == "/api/target":
-                    result = controller.target(data.get("joint"), data.get("target"))
+                    result = controller.target(data.get("joint"), data.get("target"), data.get("motion_epoch"))
+                elif self.path == "/api/heartbeat":
+                    result = controller.heartbeat(data.get("motion_epoch"))
+                elif self.path == "/api/pause":
+                    result = controller.pause(data.get("motion_epoch"))
+                elif self.path == "/api/speed":
+                    result = controller.set_speed(data.get("speed"))
                 elif self.path == "/api/torque":
-                    result = controller.torque(data.get("joint"), data.get("enabled"))
+                    result = controller.torque(data.get("joint"), data.get("enabled"),
+                                               data.get("motion_epoch"))
                 elif self.path == "/api/mode":
                     result = controller.set_mode(data.get("mode"))
                 elif self.path == "/api/stop":
@@ -416,14 +550,16 @@ def serve(bus, *, http_port: int = 8767, timeout: float = 15.0) -> None:
     controller = ArmController(bus, timeout=timeout)
     token = secrets.token_urlsafe(24)
     server = None
+    thread = None
     stop_watchdog = threading.Event()
 
     def watchdog():
-        while not stop_watchdog.wait(0.25):
+        while not stop_watchdog.wait(0.02):
             try:
-                controller.expire()
+                controller.motion_step()
             except Exception as error:
-                controller.notice = f"Could not turn off motors: {error}"
+                with controller.lock:
+                    controller._fault_locked(error)
 
     try:
         server = ThreadingHTTPServer(("127.0.0.1", http_port),
@@ -438,7 +574,10 @@ def serve(bus, *, http_port: int = 8767, timeout: float = 15.0) -> None:
         except KeyboardInterrupt:
             pass
     finally:
+        controller.cancel.set()
         stop_watchdog.set()
+        if thread is not None:
+            thread.join(timeout=2)
         if server is not None:
             server.server_close()
         controller.close()
