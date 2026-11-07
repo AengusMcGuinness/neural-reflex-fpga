@@ -22,6 +22,40 @@ reach before enabling motion.
 
 ## Install the driver
 
+### Fresh Mac quick start
+
+The checked-in controller is portable to another Mac connected to **this same
+arm**. It needs Git, [uv](https://docs.astral.sh/uv/getting-started/installation/),
+internet access for the first setup, the USB data cable, and the supplied 12 V
+adapter. On a Mac with Homebrew, `brew install uv` installs uv.
+
+```bash
+git clone https://github.com/AengusMcGuinness/neural-reflex-fpga.git
+cd neural-reflex-fpga
+./scripts/setup_leader_arm.sh
+./scripts/leader_arm ports
+```
+
+Use the arm's port printed by `ports`; it can differ between computers:
+
+```bash
+./scripts/leader_arm probe --port /dev/cu.YOUR_ARM_PORT
+./scripts/leader_arm web --port /dev/cu.YOUR_ARM_PORT --enable-motion
+```
+
+Open [http://127.0.0.1:8767/](http://127.0.0.1:8767/) on that computer and keep
+the terminal running. Click **Enable motor** on a joint to use its controls.
+Only one controller process should open the arm's USB port at a time.
+
+No files from the original Mac's ignored `.local/` folder are required: setup
+recreates the pinned driver and Python 3.13 environment. The arm's existing
+motor IDs and position limits are read from the hardware. The arm controller
+does not need the EMG band, FPGA, Vivado, or an SSH connection. These launch
+scripts and serial-port discovery have been tested on macOS; Windows setup
+is not packaged, and Linux uses different device paths and permissions.
+
+### Existing checkout
+
 From the Neo repo:
 
 ```bash
@@ -87,8 +121,7 @@ A background loop runs approximately every 20 ms, so target requests do not
 block Stop or new slider targets. If measured position falls more than 60
 ticks behind, the ramp waits for the servo; lag lasting 0.5 seconds causes a
 fault and torque-off. Stops invalidate pending targets and enable requests.
-The
-shoulder-pan and shoulder-lift controls have been checked on the physical
+The shoulder-pan and shoulder-lift controls have been checked on the physical
 arm; the other four controls are exposed through the same motor bus but have
 not yet been physically jogged.
 

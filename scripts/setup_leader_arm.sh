@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for dependency in git uv; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "Missing prerequisite: $dependency. See ARM_SETUP.md (Fresh Mac quick start)." >&2
+    exit 1
+  fi
+done
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 driver_dir="$repo_root/.local/hiwonder-SoArm-101"
 venv_dir="$repo_root/.local/arm-venv"
