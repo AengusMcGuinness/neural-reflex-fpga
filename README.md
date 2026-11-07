@@ -6,7 +6,7 @@
 
 An Axo band streams raw eight-channel EMG to a Mac. During a short calibration, a webcam tracks the wearer's hand and supplies paired labels for pinch and hand opening. We train a subject-specific decoder, quantize its weights, and run streaming feature extraction and inference on an Opal Kelly XEM7310. The decoded signal controls a gripper in a simple virtual scene.
 
-The leader arm has a handle, not the follower's grasping claw. Its shoulder motor has now completed a bounded live sweep under software control, moving the handle tip. This is an experimental use of the leader arm, separate from Hiwonder's documented leader-to-follower workflow.
+The leader arm has a handle, not the follower's grasping claw. Its shoulder-pan and shoulder-lift motors have completed bounded live sweeps under software control. A loopback-only control page provides individual torque switches, step buttons, bounded target sliders, motor telemetry, and fault recovery for all six joints; see [ARM_SETUP.md](ARM_SETUP.md). This is an experimental use of the leader arm, separate from Hiwonder's documented leader-to-follower workflow.
 
 ## Why this needs the FPGA
 
@@ -44,7 +44,7 @@ The one-person virtual gripper remains the verified software target for EMG deve
 - [FrontPanel SDK release notes](https://docs.opalkelly.com/fpsdk/release-notes/)
 - [MediaPipe Hand Landmarker live stream API](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HandLandmarker)
 
-The repo includes a raw-EMG recorder, Kinesis batch normalizer, USB packetizer, CPU decoder baseline, a Vivado-built FPGA packet receiver, and a live-tested leader-arm serial probe and bounded jog. The physical XEM7310 accepted 252 batches from a two-second live capture with correct word count, sequence, timestamp, and checksum. Webcam labels, FPGA feature extraction and inference, EMG-to-arm control, and full latency benchmarks remain to be implemented.
+The repo includes a raw-EMG recorder, Kinesis batch normalizer, USB packetizer, CPU decoder baseline, a Vivado-built FPGA packet receiver, and live-tested leader-arm serial and web controls. The physical XEM7310 accepted 252 batches from a two-second live capture with correct word count, sequence, timestamp, and checksum. Webcam labels, FPGA feature extraction and inference, EMG-to-arm control, and full latency benchmarks remain to be implemented.
 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the concrete band-to-FPGA-to-arm build sequence and proposed FrontPanel endpoint map.
 

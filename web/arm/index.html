@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="arm-token" content="__ARM_TOKEN__">
+  <title>Neo Arm Controls</title>
+  <link rel="stylesheet" href="/arm.css">
+  <script src="/arm.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Neo · local arm control</p>
+      <h1>Arm controls</h1>
+      <p>Black SO-ARM101 leader · six individual joints</p>
+    </header>
+
+    <section class="card" aria-label="Arm status and mode">
+      <div class="status-row">
+        <div class="badges">
+          <span id="connection" class="badge">Connecting…</span>
+          <span id="torque" class="badge off">Motors off</span>
+          <span id="mode-state" class="badge off">Free/manual</span>
+        </div>
+        <span id="timer" class="timer"></span>
+      </div>
+      <div id="fault-panel" class="fault-panel" role="alert" hidden>
+        <strong>Motor fault</strong>
+        <p id="fault-text"></p>
+        <button id="retry" type="button" disabled>Retry after checking arm</button>
+      </div>
+      <p id="notice" class="notice" role="status">Reading arm state…</p>
+      <p id="connection-help" class="connection-help" hidden>The control server is unavailable. Start it from the Neo folder and reload this page. If the server restarted, reload to get a new control token.</p>
+      <div class="control-grid">
+        <fieldset class="mode-control">
+          <legend>Arm mode</legend>
+          <div class="mode-buttons" role="group" aria-label="Arm mode">
+            <button id="arm" type="button" class="primary" aria-pressed="false" disabled>Position control</button>
+            <button id="free" type="button" aria-pressed="true" disabled>Free / manual</button>
+            <button id="stop" type="button" class="stop" disabled>Stop all motors</button>
+          </div>
+          <p class="hint">Position control selects a mode but leaves torque off. Turn on only the joint you want to move. Free/manual and Stop all motors turn torque off.</p>
+        </fieldset>
+        <div class="step-control">
+          <label for="step">Joint step</label>
+          <select id="step" disabled>
+            <option value="1">1 tick</option>
+            <option value="5" selected>5 ticks</option>
+            <option value="10">10 ticks</option>
+            <option value="20">20 ticks</option>
+          </select>
+          <p id="limits" class="hint">Reading movement limits…</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="joints-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="joints-title">Individual joints</h2>
+          <p class="hint">Turn on a joint’s torque to move it. Use one step at a time or release its slider to send a target.</p>
+        </div>
+        <span id="updated" class="updated"></span>
+      </div>
+      <div id="joints" class="joints" aria-label="Joint controls"></div>
+    </section>
+
+    <p class="footnote">Keep the movement area clear. Motor torque turns off automatically after __ARM_TIMEOUT__ seconds without a movement command. The black leader arm has a handle joint; it is not a powered follower gripper.</p>
+  </main>
+</body>
+</html>

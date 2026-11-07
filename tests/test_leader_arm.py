@@ -8,6 +8,7 @@ from neural_reflex.leader_arm import JOINTS, JointState, JogSession, run_probe
 class FakeBus:
     def __init__(self):
         self.events = []
+        self.failed_disable = set()
         self.values = {
             name: {
                 "Present_Position": 2048,
@@ -35,8 +36,10 @@ class FakeBus:
     def enable_torque(self):
         self.events.append(("enable_torque",))
 
-    def disable_torque(self):
-        self.events.append(("disable_torque",))
+    def disable_torque(self, name):
+        self.events.append(("disable_torque", name))
+        if name in self.failed_disable:
+            raise RuntimeError("servo overload")
 
 
 class LeaderArmTests(unittest.TestCase):
@@ -66,7 +69,8 @@ class LeaderArmTests(unittest.TestCase):
         self.assertEqual(self.bus.events[-1], ("enable_torque",))
         self.assertEqual(session.jog("shoulder_pan", 10), 2058)
         session.stop()
-        self.assertEqual(self.bus.events[-1], ("disable_torque",))
+        self.assertEqual([event for event in self.bus.events if event[0] == "disable_torque"],
+                         [("disable_torque", name) for name in JOINTS])
 
     def test_jog_rejects_large_steps_and_travel(self):
         session = JogSession(self.bus, self.states)
@@ -83,6 +87,15 @@ class LeaderArmTests(unittest.TestCase):
         self.states["elbow_flex"] = JointState(2048, 1000, 3000, True, 0)
         with self.assertRaises(ValueError):
             JogSession(self.bus, self.states)
+
+    def test_stop_attempts_other_motors_after_one_fault(self):
+        session = JogSession(self.bus, self.states)
+        session.arm()
+        self.bus.failed_disable.add("shoulder_lift")
+        with self.assertRaisesRegex(RuntimeError, "shoulder_lift"):
+            session.stop()
+        self.assertEqual([event[1] for event in self.bus.events
+                          if event[0] == "disable_torque"], list(JOINTS))
 
 
 if __name__ == "__main__":

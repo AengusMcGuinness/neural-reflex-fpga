@@ -81,6 +81,17 @@ def validate_motion_state(states: dict[str, JointState]) -> None:
             raise ValueError(f"{name} is outside its configured position limits")
 
 
+def disable_all_torque(bus) -> dict[str, str]:
+    """Attempt every motor even if one reports a fault during torque-off."""
+    errors = {}
+    for name in JOINTS:
+        try:
+            bus.disable_torque(name)
+        except Exception as error:
+            errors[name] = str(error).splitlines()[0]
+    return errors
+
+
 class JogSession:
     """Software-bounded, one-step-at-a-time joint motion."""
 
@@ -107,7 +118,7 @@ class JogSession:
         try:
             self.bus.enable_torque()
         except BaseException:
-            self.bus.disable_torque()
+            disable_all_torque(self.bus)
             raise
         self.armed = True
 
@@ -130,7 +141,10 @@ class JogSession:
 
     def stop(self) -> None:
         if self.armed:
-            self.bus.disable_torque()
+            errors = disable_all_torque(self.bus)
+            if errors:
+                raise RuntimeError("Torque-off could not be verified for: "
+                                   + ", ".join(errors))
             self.armed = False
 
 
@@ -195,8 +209,8 @@ def run_jog(bus, max_step: int, max_travel: int, timeout: float) -> None:
             if session is not None:
                 session.stop()
         finally:
-            # Retry disabling on disconnect if the first stop write failed.
-            bus.disconnect(disable_torque=bool(session and session.armed))
+            # stop() attempted every motor; always close the serial port.
+            bus.disconnect(disable_torque=False)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -211,6 +225,11 @@ def main(argv: list[str] | None = None) -> int:
     jog.add_argument("--max-step", type=int, default=10)
     jog.add_argument("--max-travel", type=int, default=80)
     jog.add_argument("--timeout", type=float, default=10.0)
+    web = commands.add_parser("web", help="local browser controls for all six joints")
+    web.add_argument("--port", required=True, help="arm USB serial port")
+    web.add_argument("--http-port", type=int, default=8767)
+    web.add_argument("--enable-motion", action="store_true", required=True)
+    web.add_argument("--timeout", type=float, default=15.0)
     args = parser.parse_args(argv)
     if args.command == "ports":
         print("\n".join(glob("/dev/cu.*")) or "No serial devices found")
@@ -218,10 +237,13 @@ def main(argv: list[str] | None = None) -> int:
     bus = make_bus(args.port)
     if args.command == "probe":
         run_probe(bus)
-    else:
+    elif args.command == "jog":
         if not 1 <= args.timeout <= 60:
             parser.error("--timeout must be 1..60 seconds")
         run_jog(bus, args.max_step, args.max_travel, args.timeout)
+    else:
+        from .arm_web import serve
+        serve(bus, http_port=args.http_port, timeout=args.timeout)
     return 0
 
 
