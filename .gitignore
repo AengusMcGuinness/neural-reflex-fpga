@@ -13,3 +13,4 @@ __pycache__/
 *.cache/
 data/private/
 data/raw/
+data/models/
