@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pick Simulation</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif;
+    --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --arm: #111; --item: #2563eb;
+    --safe: #16a34a; --heavy: #d97706; --bad: #dc2626; --ghost: #ea580c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #262626; --arm: #eee;
+    --item: #60a5fa; --safe: #4ade80; --heavy: #fbbf24; --bad: #f87171; --ghost: #fb923c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 600; }
+  .muted { color: var(--muted); font-size: .85rem; } .warn { color: var(--bad); }
+  .grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 32px; margin-top: 20px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  canvas { display: block; width: 100%; }
+  #scene { height: 440px; } .lane { height: 56px; }
+  .lane-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); margin-top: 10px; }
+  .lane-label b { color: var(--text); font-weight: 600; }
+  .controls { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .controls input { flex: 1; }
+  button { font: inherit; font-size: .85rem; color: var(--text); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  .step { font-size: .95rem; margin-top: 8px; min-height: 1.3em; }
+  .legend span { margin-right: 14px; font-size: .8rem; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SO-ARM101 pick, one plane (simulation)</h1>
+  <div class="muted" id="intro"></div>
+  <div class="grid">
+    <section>
+      <canvas id="scene"></canvas>
+      <div class="legend muted"><span><i style="background:var(--safe)"></i>safe to pick</span><span><i style="background:var(--heavy)"></i>reachable, heavy load</span><span><i style="background:var(--bad)"></i>can't pick</span></div>
+      <div class="step" id="step"></div>
+      <div class="controls"><button id="play" type="button">Pause</button><input id="scrub" type="range" min="0" value="0" aria-label="Time"><span id="clock" class="muted"></span></div>
+    </section>
+    <section id="lanes"></section>
+  </div>
+</main>
+<script>
+"use strict";
+const D = __PICK_DATA__;
+const G = D.geometry, N = D.angles.length, J = ["shoulder_lift", "elbow_flex", "wrist_flex"];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n);
+const fit = c => { const d = devicePixelRatio || 1, w = Math.round(c.clientWidth * d), h = Math.round(c.clientHeight * d);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [c.getContext("2d"), w, h, d]; };
+const safe = D.reach.filter(r => r.status === "safe").map(r => r.distance_m);
+document.getElementById("intro").innerHTML =
+  `Item ${(D.item.height * 100).toFixed(0)} cm tall at ${(D.item.distance * 100).toFixed(1)} cm from the base · safe zone ${(Math.min(...safe) * 100).toFixed(0)}–${(Math.max(...safe) * 100).toFixed(0)} cm · ` +
+  `gripper tilted ${(180 - D.pitch).toFixed(0)}° from straight down` +
+  (Object.values(D.checked).every(Boolean) ? "" : ` · <span class="warn">directions not checked: ${Object.keys(D.checked).filter(k => !D.checked[k]).join(", ")}</span>`) +
+  (D.problems.length ? ` · <span class="warn">${D.problems.join("; ")}</span>` : "");
+
+function chain(a) {
+  const pts = [[G.shoulder_forward, G.shoulder_height]]; let h = 0;
+  a.forEach((deg, i) => { h += deg * Math.PI / 180; const p = pts[pts.length - 1];
+    pts.push([p[0] + G.links[i] * Math.sin(h), p[1] + G.links[i] * Math.cos(h)]); });
+  return { pts, heading: h };
+}
+
+let index = 0, playing = true;
+function drawScene() {
+  const [ctx, w, h, d] = fit(document.getElementById("scene")); ctx.clearRect(0, 0, w, h);
+  const s = Math.min(w / 0.62, h / 0.6), X = x => (x + 0.1) * s, Z = z => h - 30 * d - z * s;
+  // Table with the reach map painted along it.
+  const step = D.reach[1].distance_m - D.reach[0].distance_m;
+  for (const r of D.reach) {
+    ctx.fillStyle = css(r.status === "safe" ? "--safe" : r.status === "heavy" ? "--heavy" : "--bad");
+    ctx.globalAlpha = 0.55; ctx.fillRect(X(r.distance_m - step / 2), Z(0), step * s + 1, 8 * d);
+  }
+  ctx.globalAlpha = 1; ctx.strokeStyle = css("--line"); ctx.lineWidth = 2 * d;
+  ctx.beginPath(); ctx.moveTo(0, Z(0)); ctx.lineTo(w, Z(0)); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = `${10 * d}px system-ui`; ctx.textAlign = "center";
+  for (let cm = 0; cm <= 45; cm += 5) ctx.fillText(`${cm}`, X(cm / 100), Z(0) + 22 * d);
+  ctx.fillText("cm from base", X(0.5), Z(0) + 22 * d); ctx.textAlign = "left";
+  // Base and shoulder post.
+  ctx.fillStyle = css("--line"); ctx.fillRect(X(-0.05), Z(0.06), 0.1 * s, 0.06 * s);
+  ctx.fillRect(X(0.01), Z(G.shoulder_height), 0.04 * s, (G.shoulder_height - 0.06) * s);
+  // Item: rides with the gripper while it is closed and lifting.
+  const a = D.angles[index], c = chain(a), tip = c.pts[3];
+  const holding = D.grip[index] > 0.9 && D.labels[index] !== "close the gripper";
+  const ix = holding ? tip[0] : D.item.distance, iz = holding ? tip[1] - D.item.height * 0.6 : 0;
+  ctx.fillStyle = css("--item"); ctx.fillRect(X(ix - D.item.width / 2), Z(iz + D.item.height), D.item.width * s, D.item.height * s);
+  // Arm as planned (solid) and as the speed-limited robot follows it (ghost).
+  const ghost = chain(J.map(j => D.executed_deg[j][index]));
+  for (const [ch, color, lw, alpha] of [[ghost, css("--ghost"), 5, 0.5], [c, css("--arm"), 9, 1]]) {
+    ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = lw * d; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ch.pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Z(p[1])) : ctx.moveTo(X(p[0]), Z(p[1]))); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  // Gripper jaws at the tip, opening and closing.
+  const open = (1 - D.grip[index]) * 0.025 + 0.004, hd = c.heading, nx = Math.cos(hd), nz = -Math.sin(hd);
+  ctx.strokeStyle = css("--arm"); ctx.lineWidth = 4 * d;
+  for (const side of [-1, 1]) { ctx.beginPath();
+    ctx.moveTo(X(tip[0] + side * open * nx), Z(tip[1] + side * open * nz));
+    ctx.lineTo(X(tip[0] + side * open * nx + 0.03 * Math.sin(hd)), Z(tip[1] + side * open * nz + 0.03 * Math.cos(hd))); ctx.stroke(); }
+  // Shoulder load gauge.
+  const t = D.torque[index][0], gx = w - 150 * d, gy = 20 * d;
+  ctx.fillStyle = css("--muted"); ctx.font = `${11 * d}px system-ui`;
+  ctx.fillText(`shoulder load ${t.toFixed(1)} / ${D.stall_kg_cm} kg·cm`, gx, gy);
+  ctx.fillStyle = css("--line"); ctx.fillRect(gx, gy + 6 * d, 130 * d, 8 * d);
+  ctx.fillStyle = css(t <= D.safe_kg_cm ? "--safe" : t <= D.max_kg_cm ? "--heavy" : "--bad");
+  ctx.fillRect(gx, gy + 6 * d, 130 * d * Math.min(1, t / D.stall_kg_cm), 8 * d);
+  document.getElementById("step").textContent = D.labels[index];
+}
+
+const lanes = [...J, "gripper"].map(j => { const label = document.createElement("div"); label.className = "lane-label";
+  const c = document.createElement("canvas"); c.className = "lane"; document.getElementById("lanes").append(label, c);
+  c.onclick = e => { const r = c.getBoundingClientRect(); index = Math.round((e.clientX - r.left) / r.width * (N - 1)); };
+  return { j, label, c }; });
+function drawLanes() {
+  for (const { j, label, c } of lanes) {
+    const [ctx, w, h, d] = fit(c); ctx.clearRect(0, 0, w, h);
+    const plan = j === "gripper" ? D.grip.map(g => g * 100) : D.angles.map(a => a[J.indexOf(j)]);
+    const [lo, hi] = j === "gripper" ? [0, 100] : D.limits[j], pad = (hi - lo) * 0.05, a = lo - pad, b = hi + pad;
+    const X = i => i / (N - 1) * w, Y = v => h - (v - a) / (b - a) * h;
+    ctx.fillStyle = css("--line"); ctx.fillRect(0, Y(hi), w, Y(lo) - Y(hi));
+    if (j !== "gripper") { ctx.strokeStyle = css("--ghost"); ctx.lineWidth = 1.5 * d; ctx.beginPath();
+      D.executed_deg[j].forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke(); }
+    ctx.strokeStyle = css("--arm"); ctx.lineWidth = 1.5 * d; ctx.beginPath();
+    plan.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke();
+    ctx.strokeStyle = css("--muted"); ctx.lineWidth = d; ctx.beginPath(); ctx.moveTo(X(index), 0); ctx.lineTo(X(index), h); ctx.stroke();
+    const v = plan[index], near = j !== "gripper" && Math.min(v - lo, hi - v) < 8;
+    label.innerHTML = `<b>${j.replace("_", " ")}</b><span class="${near ? "warn" : ""}">${j === "gripper" ? `${v.toFixed(0)}% closed` :
+      `${v.toFixed(0)}° (limits ${lo.toFixed(0)}…${hi.toFixed(0)}°)${D.checked[j] ? "" : " · direction unchecked"}`}</span>`;
+  }
+}
+
+const scrub = document.getElementById("scrub"); scrub.max = N - 1; scrub.oninput = () => { index = +scrub.value; };
+document.getElementById("play").onclick = e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; };
+let last = performance.now(), acc = 0;
+(function loop(now) {
+  if (playing) { acc += now - last; while (acc >= D.dt * 1000) { acc -= D.dt * 1000; index = (index + 1) % N; } }
+  last = now; scrub.value = index; document.getElementById("clock").textContent = `${(index * D.dt).toFixed(1)} s`;
+  drawScene(); drawLanes(); requestAnimationFrame(loop);
+})(performance.now());
+</script>
+</body>
+</html>

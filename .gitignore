@@ -19,3 +19,4 @@ data/raw/
 data/models/
 data/sessions/
 *.task
+data/sim/
