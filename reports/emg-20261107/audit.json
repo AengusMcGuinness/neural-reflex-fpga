@@ -1,0 +1,174 @@
+{
+  "duration_s": 134.837,
+  "overlap_s": 132.983,
+  "camera_only": false,
+  "emg_batches": 17259,
+  "emg_samples": 276144,
+  "emg_duration_s": 134.837,
+  "source_sample_rate_hz": 2048,
+  "source_sample_rate_counts": {
+    "2048": 17259
+  },
+  "effective_sample_rate_hz": 2047.98,
+  "epochs": {
+    "stream_sessions": 1,
+    "band_connections": 1,
+    "session_connection_pairs": 1,
+    "unknown_connection_batches": 0
+  },
+  "sequence_anomalies": {
+    "gap_boundaries": 0,
+    "missing_batches_estimate": 0,
+    "duplicates": 0,
+    "backsteps_or_resets": 0,
+    "wraps": 0,
+    "epoch_transitions": 0
+  },
+  "band_batch_interval_us": {
+    "min": 7812.0,
+    "p05": 7812.0,
+    "median": 7812.5,
+    "p95": 7813.0,
+    "max": 7813.0
+  },
+  "host_arrival": {
+    "interval_ms": {
+      "min": 0.0,
+      "p05": 0.0,
+      "median": 0.0,
+      "p95": 57.236,
+      "max": 174.924
+    },
+    "zero_interval_fraction": 0.7803,
+    "backsteps": 0
+  },
+  "pose_frames": 3972,
+  "pose_duration_s": 132.983,
+  "pose_fps": 29.86,
+  "world_landmark_frames": 3972,
+  "pose_gap": {
+    "interval_ms": {
+      "min": 28.317,
+      "p05": 31.362,
+      "median": 33.366,
+      "p95": 35.066,
+      "max": 334.417
+    },
+    "over_100ms": 2,
+    "over_200ms": 1,
+    "backsteps": 0
+  },
+  "per_metric_validity": {
+    "shoulder_lift": {
+      "valid_frames": 3972,
+      "fraction": 1.0
+    },
+    "shoulder_pan": {
+      "valid_frames": 1879,
+      "fraction": 0.4731
+    },
+    "elbow_flex": {
+      "valid_frames": 3972,
+      "fraction": 1.0
+    },
+    "wrist_flex": {
+      "valid_frames": 3972,
+      "fraction": 1.0
+    }
+  },
+  "angle_distributions": {
+    "shoulder_lift": {
+      "min": 0.555,
+      "p05": 4.234,
+      "median": 13.711,
+      "p95": 97.456,
+      "max": 161.203
+    },
+    "shoulder_pan": {
+      "min": -25.366,
+      "p05": 3.808,
+      "median": 25.626,
+      "p95": 107.348,
+      "max": 129.843
+    },
+    "elbow_flex": {
+      "min": 11.902,
+      "p05": 19.533,
+      "median": 43.321,
+      "p95": 96.875,
+      "max": 110.582
+    },
+    "wrist_flex": {
+      "min": 0.154,
+      "p05": 2.579,
+      "median": 12.516,
+      "p95": 24.675,
+      "max": 52.561
+    }
+  },
+  "side_metric_validity": {
+    "left": {
+      "elbow_flex": 118,
+      "shoulder_lift": 118,
+      "shoulder_pan": 23,
+      "wrist_flex": 118
+    },
+    "right": {
+      "elbow_flex": 3972,
+      "shoulder_lift": 3972,
+      "shoulder_pan": 1879,
+      "wrist_flex": 3972
+    }
+  },
+  "cues": {
+    "elbow": {
+      "frames": 599,
+      "span_s": 19.969
+    },
+    "free": {
+      "frames": 600,
+      "span_s": 19.97
+    },
+    "home": {
+      "frames": 150,
+      "span_s": 4.966
+    },
+    "lift_forward": {
+      "frames": 597,
+      "span_s": 19.969
+    },
+    "ready": {
+      "frames": 136,
+      "span_s": 4.967
+    },
+    "rest": {
+      "frames": 120,
+      "span_s": 3.967
+    },
+    "rest_end": {
+      "frames": 90,
+      "span_s": 2.968
+    },
+    "sweep_side": {
+      "frames": 600,
+      "span_s": 19.969
+    },
+    "sync": {
+      "frames": 180,
+      "span_s": 5.968
+    },
+    "wrist_flex": {
+      "frames": 450,
+      "span_s": 14.969
+    },
+    "wrist_roll": {
+      "frames": 450,
+      "span_s": 14.967
+    }
+  },
+  "motion_events": {
+    "gyro": 17262,
+    "orientation": 17253
+  },
+  "motion_duration_s": 134.837
+}

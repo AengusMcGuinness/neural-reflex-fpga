@@ -1,0 +1,793 @@
+{
+  "method": {
+    "feature": "causal bandpass/notch-filtered log1p RMS; 100 ms window, 20 ms hop",
+    "feature_config": {
+      "sample_rate": 2048,
+      "window_samples": 205,
+      "hop_samples": 41,
+      "history": 1,
+      "warmup_samples": 2048
+    },
+    "alignment": "EMG window end + fixed 50 ms to interpolated camera angle",
+    "label_delay_seconds": 0.05,
+    "correlation": "Pearson; within-cue subtracts each scripted cue mean",
+    "shuffle": "jointly permute contiguous equal-window EMG blocks; trim final partial block",
+    "permutations": 1000,
+    "seed": 7,
+    "primary_block_seconds": 5,
+    "sensitivity_block_seconds": [
+      2,
+      10
+    ],
+    "multiplicity": "max absolute r across all 8 x 3 channel-joint pairs, separately for overall and within-cue",
+    "inference": "empirical p conditional on exchangeable blocks only; one scripted nonstationary session does not establish population significance",
+    "reference": "https://doi.org/10.1371/journal.pbio.3002758"
+  },
+  "channels": [
+    "EMG 1",
+    "EMG 2",
+    "EMG 3",
+    "EMG 4",
+    "EMG 5",
+    "EMG 6",
+    "EMG 7",
+    "EMG 8"
+  ],
+  "joints": [
+    "shoulder_lift",
+    "elbow_flex",
+    "wrist_flex"
+  ],
+  "paired_windows": 6568,
+  "pair_counts": [
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ],
+    [
+      6568,
+      6568,
+      6568
+    ]
+  ],
+  "overall_r": [
+    [
+      -0.5354,
+      0.5459,
+      0.0052
+    ],
+    [
+      -0.1971,
+      0.2648,
+      -0.0244
+    ],
+    [
+      -0.3572,
+      0.4284,
+      -0.0638
+    ],
+    [
+      -0.37,
+      0.4314,
+      -0.0354
+    ],
+    [
+      -0.2549,
+      0.2503,
+      -0.0218
+    ],
+    [
+      -0.0044,
+      -0.0603,
+      -0.0382
+    ],
+    [
+      -0.2496,
+      0.3586,
+      -0.0785
+    ],
+    [
+      -0.1465,
+      0.1737,
+      -0.0656
+    ]
+  ],
+  "within_cue_r": [
+    [
+      -0.3082,
+      0.3181,
+      0.0366
+    ],
+    [
+      -0.0952,
+      0.1099,
+      -0.0358
+    ],
+    [
+      -0.1722,
+      0.229,
+      -0.043
+    ],
+    [
+      -0.1755,
+      0.2375,
+      0.0059
+    ],
+    [
+      -0.0716,
+      0.0695,
+      0.0431
+    ],
+    [
+      0.0372,
+      -0.1317,
+      0.0277
+    ],
+    [
+      -0.0953,
+      0.1027,
+      -0.1496
+    ],
+    [
+      -0.0215,
+      -0.0165,
+      -0.0757
+    ]
+  ],
+  "top_pairs": [
+    {
+      "channel": "EMG 1",
+      "joint": "elbow_flex",
+      "overall_r": 0.5459,
+      "within_cue_r": 0.3181,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 1",
+      "joint": "shoulder_lift",
+      "overall_r": -0.5354,
+      "within_cue_r": -0.3082,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 4",
+      "joint": "elbow_flex",
+      "overall_r": 0.4314,
+      "within_cue_r": 0.2375,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 3",
+      "joint": "elbow_flex",
+      "overall_r": 0.4284,
+      "within_cue_r": 0.229,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 4",
+      "joint": "shoulder_lift",
+      "overall_r": -0.37,
+      "within_cue_r": -0.1755,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 7",
+      "joint": "elbow_flex",
+      "overall_r": 0.3586,
+      "within_cue_r": 0.1027,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 3",
+      "joint": "shoulder_lift",
+      "overall_r": -0.3572,
+      "within_cue_r": -0.1722,
+      "paired_windows": 6568
+    },
+    {
+      "channel": "EMG 2",
+      "joint": "elbow_flex",
+      "overall_r": 0.2648,
+      "within_cue_r": 0.1099,
+      "paired_windows": 6568
+    }
+  ],
+  "block_shuffle_sensitivity": {
+    "2": {
+      "requested_block_seconds": 2,
+      "actual_block_seconds": 2.002,
+      "block_windows": 100,
+      "complete_blocks": 65,
+      "used_windows": 6500,
+      "discarded_tail_windows": 68,
+      "joint_pair_counts": [
+        6500,
+        6500,
+        6500
+      ],
+      "observed_overall_r": [
+        [
+          -0.5326,
+          0.5431,
+          0.0264
+        ],
+        [
+          -0.1741,
+          0.2597,
+          -0.0048
+        ],
+        [
+          -0.3595,
+          0.4269,
+          -0.0632
+        ],
+        [
+          -0.3603,
+          0.4279,
+          -0.0171
+        ],
+        [
+          -0.2374,
+          0.2454,
+          -0.0029
+        ],
+        [
+          0.0184,
+          -0.0654,
+          -0.0259
+        ],
+        [
+          -0.2577,
+          0.3582,
+          -0.0817
+        ],
+        [
+          -0.1464,
+          0.1722,
+          -0.0682
+        ]
+      ],
+      "observed_within_cue_r": [
+        [
+          -0.3102,
+          0.318,
+          0.0338
+        ],
+        [
+          -0.0907,
+          0.1089,
+          -0.0401
+        ],
+        [
+          -0.1785,
+          0.2296,
+          -0.0589
+        ],
+        [
+          -0.1752,
+          0.2372,
+          0.0045
+        ],
+        [
+          -0.0693,
+          0.0689,
+          0.0418
+        ],
+        [
+          0.0421,
+          -0.1329,
+          0.0268
+        ],
+        [
+          -0.1018,
+          0.1035,
+          -0.1592
+        ],
+        [
+          -0.0254,
+          -0.0165,
+          -0.0854
+        ]
+      ],
+      "familywise_p_overall": [
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.3397,
+          0.03,
+          1.0
+        ],
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.0639,
+          0.048,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.031,
+          0.001,
+          0.985
+        ],
+        [
+          0.5594,
+          0.3536,
+          0.999
+        ]
+      ],
+      "familywise_p_within_cue": [
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.9471,
+          0.8442,
+          1.0
+        ],
+        [
+          0.2178,
+          0.049,
+          0.999
+        ],
+        [
+          0.2418,
+          0.042,
+          1.0
+        ],
+        [
+          0.997,
+          0.997,
+          1.0
+        ],
+        [
+          1.0,
+          0.6154,
+          1.0
+        ],
+        [
+          0.8911,
+          0.8841,
+          0.3696
+        ],
+        [
+          1.0,
+          1.0,
+          0.97
+        ]
+      ],
+      "null_max_abs_overall_p95": 0.2423,
+      "null_max_abs_within_cue_p95": 0.2277
+    },
+    "5": {
+      "requested_block_seconds": 5,
+      "actual_block_seconds": 5.004,
+      "block_windows": 250,
+      "complete_blocks": 26,
+      "used_windows": 6500,
+      "discarded_tail_windows": 68,
+      "joint_pair_counts": [
+        6500,
+        6500,
+        6500
+      ],
+      "observed_overall_r": [
+        [
+          -0.5326,
+          0.5431,
+          0.0264
+        ],
+        [
+          -0.1741,
+          0.2597,
+          -0.0048
+        ],
+        [
+          -0.3595,
+          0.4269,
+          -0.0632
+        ],
+        [
+          -0.3603,
+          0.4279,
+          -0.0171
+        ],
+        [
+          -0.2374,
+          0.2454,
+          -0.0029
+        ],
+        [
+          0.0184,
+          -0.0654,
+          -0.0259
+        ],
+        [
+          -0.2577,
+          0.3582,
+          -0.0817
+        ],
+        [
+          -0.1464,
+          0.1722,
+          -0.0682
+        ]
+      ],
+      "observed_within_cue_r": [
+        [
+          -0.3102,
+          0.318,
+          0.0338
+        ],
+        [
+          -0.0907,
+          0.1089,
+          -0.0401
+        ],
+        [
+          -0.1785,
+          0.2296,
+          -0.0589
+        ],
+        [
+          -0.1752,
+          0.2372,
+          0.0045
+        ],
+        [
+          -0.0693,
+          0.0689,
+          0.0418
+        ],
+        [
+          0.0421,
+          -0.1329,
+          0.0268
+        ],
+        [
+          -0.1018,
+          0.1035,
+          -0.1592
+        ],
+        [
+          -0.0254,
+          -0.0165,
+          -0.0854
+        ]
+      ],
+      "familywise_p_overall": [
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.6893,
+          0.1938,
+          1.0
+        ],
+        [
+          0.022,
+          0.003,
+          1.0
+        ],
+        [
+          0.022,
+          0.003,
+          1.0
+        ],
+        [
+          0.2867,
+          0.2488,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.1988,
+          0.023,
+          0.997
+        ],
+        [
+          0.8412,
+          0.7073,
+          1.0
+        ]
+      ],
+      "familywise_p_within_cue": [
+        [
+          0.037,
+          0.028,
+          1.0
+        ],
+        [
+          0.983,
+          0.9471,
+          1.0
+        ],
+        [
+          0.5175,
+          0.2268,
+          1.0
+        ],
+        [
+          0.5375,
+          0.1928,
+          1.0
+        ],
+        [
+          0.996,
+          0.996,
+          1.0
+        ],
+        [
+          1.0,
+          0.8392,
+          1.0
+        ],
+        [
+          0.962,
+          0.96,
+          0.6643
+        ],
+        [
+          1.0,
+          1.0,
+          0.99
+        ]
+      ],
+      "null_max_abs_overall_p95": 0.3215,
+      "null_max_abs_within_cue_p95": 0.2976
+    },
+    "10": {
+      "requested_block_seconds": 10,
+      "actual_block_seconds": 10.008,
+      "block_windows": 500,
+      "complete_blocks": 13,
+      "used_windows": 6500,
+      "discarded_tail_windows": 68,
+      "joint_pair_counts": [
+        6500,
+        6500,
+        6500
+      ],
+      "observed_overall_r": [
+        [
+          -0.5326,
+          0.5431,
+          0.0264
+        ],
+        [
+          -0.1741,
+          0.2597,
+          -0.0048
+        ],
+        [
+          -0.3595,
+          0.4269,
+          -0.0632
+        ],
+        [
+          -0.3603,
+          0.4279,
+          -0.0171
+        ],
+        [
+          -0.2374,
+          0.2454,
+          -0.0029
+        ],
+        [
+          0.0184,
+          -0.0654,
+          -0.0259
+        ],
+        [
+          -0.2577,
+          0.3582,
+          -0.0817
+        ],
+        [
+          -0.1464,
+          0.1722,
+          -0.0682
+        ]
+      ],
+      "observed_within_cue_r": [
+        [
+          -0.3102,
+          0.318,
+          0.0338
+        ],
+        [
+          -0.0907,
+          0.1089,
+          -0.0401
+        ],
+        [
+          -0.1785,
+          0.2296,
+          -0.0589
+        ],
+        [
+          -0.1752,
+          0.2372,
+          0.0045
+        ],
+        [
+          -0.0693,
+          0.0689,
+          0.0418
+        ],
+        [
+          0.0421,
+          -0.1329,
+          0.0268
+        ],
+        [
+          -0.1018,
+          0.1035,
+          -0.1592
+        ],
+        [
+          -0.0254,
+          -0.0165,
+          -0.0854
+        ]
+      ],
+      "familywise_p_overall": [
+        [
+          0.001,
+          0.001,
+          1.0
+        ],
+        [
+          0.8472,
+          0.4026,
+          1.0
+        ],
+        [
+          0.0819,
+          0.015,
+          1.0
+        ],
+        [
+          0.0809,
+          0.015,
+          1.0
+        ],
+        [
+          0.5285,
+          0.4815,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          0.4116,
+          0.0819,
+          1.0
+        ],
+        [
+          0.9391,
+          0.8531,
+          1.0
+        ]
+      ],
+      "familywise_p_within_cue": [
+        [
+          0.031,
+          0.024,
+          1.0
+        ],
+        [
+          0.99,
+          0.962,
+          1.0
+        ],
+        [
+          0.5225,
+          0.2258,
+          1.0
+        ],
+        [
+          0.5485,
+          0.1938,
+          1.0
+        ],
+        [
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.8501,
+          1.0
+        ],
+        [
+          0.974,
+          0.969,
+          0.6523
+        ],
+        [
+          1.0,
+          1.0,
+          0.994
+        ]
+      ],
+      "null_max_abs_overall_p95": 0.3808,
+      "null_max_abs_within_cue_p95": 0.2922
+    }
+  },
+  "limits": [
+    "Band wrist has not been physically confirmed for the camera arm.",
+    "Camera capture/exposure latency relative to Kinesis host receipt is unmeasured.",
+    "The 50 ms alignment is fixed; no lag search was performed.",
+    "Correlations do not establish joint decodability, control quality, or causation."
+  ],
+  "clock": {
+    "fit": "first 60% of EMG device time; host receipt timestamps",
+    "slope": 0.9998179531588313,
+    "receipt_residual_p05_p50_p95_ms": [
+      -43.99353650514968,
+      1.844074169639498,
+      67.50754923559725
+    ]
+  },
+  "side": "right"
+}

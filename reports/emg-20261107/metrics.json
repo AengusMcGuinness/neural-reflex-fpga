@@ -1,0 +1,789 @@
+{
+  "title": "EMG-only joint decoder \u00b7 chronological holdout",
+  "dataset": {
+    "duration_s": 132.9829902909696,
+    "emg_samples": 276144,
+    "pose_frames": 3972,
+    "description": "First guided arm-reach recording; EMG is the only model input. Camera angles supply training/evaluation labels."
+  },
+  "protocol": {
+    "name": "Chronological 60% train / 20% validation / 20% final test",
+    "description": "0.8 s guards on both sides of each boundary; independent filter initialization and 1 s warmup in every split. Hyperparameters and model selected using validation only; no refit on validation. Final scores use unsmoothed predictions.",
+    "train_windows": 3842,
+    "validation_windows": 1162,
+    "test_windows": 1200,
+    "context_ms": 700.68359375,
+    "hop_ms": 20.01953125,
+    "label_delay_ms": 50,
+    "selection": "mean shoulder/elbow MAE divided by training standard deviation (minimum 5 degrees)",
+    "intervals_seconds_from_first_pose": {
+      "train": [
+        0.0,
+        78.98979417461669
+      ],
+      "validation": [
+        80.58979417459341,
+        105.58639223279897
+      ],
+      "test": [
+        107.18639223277569,
+        132.9829902909696
+      ]
+    }
+  },
+  "models": [
+    {
+      "name": "Training mean",
+      "artifact": "constant.npz",
+      "validation": {
+        "mae_deg": [
+          33.30744486379036,
+          38.373676870296634,
+          5.475774941268947
+        ],
+        "r2": [
+          -106.35250186632733,
+          -15.61753307863405,
+          -0.004957427754199495
+        ],
+        "count": [
+          1162,
+          1162,
+          1162
+        ]
+      },
+      "test": {
+        "mae_deg": [
+          32.015498766895604,
+          25.173177764714346,
+          7.853852285305349
+        ],
+        "r2": [
+          -0.015916343988591652,
+          -0.20233431533193258,
+          -0.17479768285017427
+        ],
+        "count": [
+          1200,
+          1200,
+          1200
+        ]
+      },
+      "test_by_cue": {
+        "free": {
+          "mae_deg": [
+            24.22904215746299,
+            26.816256286209207,
+            6.749391124333778
+          ],
+          "r2": [
+            -0.45512989157027595,
+            -0.2460204597118254,
+            -0.03999182997443396
+          ],
+          "count": [
+            804,
+            804,
+            804
+          ]
+        },
+        "home": {
+          "mae_deg": [
+            25.562918027532227,
+            31.718063970854654,
+            6.781323052683937
+          ],
+          "r2": [
+            -4.162668595528053,
+            -0.3153931521509421,
+            -0.6025892358493536
+          ],
+          "count": [
+            250,
+            250,
+            250
+          ]
+        },
+        "rest_end": {
+          "mae_deg": [
+            85.94328163555768,
+            4.9179950056941655,
+            15.772476131719706
+          ],
+          "r2": [
+            -4.556468363249199,
+            -0.8136484365555665,
+            -1.4535477397012682
+          ],
+          "count": [
+            146,
+            146,
+            146
+          ]
+        }
+      },
+      "test_no_clipping": {
+        "mae_deg": [
+          32.84533722480764,
+          24.89590831699859,
+          8.0341614497266
+        ],
+        "r2": [
+          -0.00585742597207739,
+          -0.1468580136911768,
+          -0.16876580432001975
+        ],
+        "count": [
+          1085,
+          1085,
+          1085
+        ]
+      },
+      "inference_ms": 0.005916001100558788
+    },
+    {
+      "name": "Ridge",
+      "artifact": "ridge.npz",
+      "validation": {
+        "mae_deg": [
+          18.973274058887366,
+          23.69625794293417,
+          5.857446122951626
+        ],
+        "r2": [
+          -59.8758350973712,
+          -6.880953343605089,
+          -0.1649124458286313
+        ],
+        "count": [
+          1162,
+          1162,
+          1162
+        ]
+      },
+      "test": {
+        "mae_deg": [
+          26.593310127195195,
+          19.72858991094291,
+          9.62153188432855
+        ],
+        "r2": [
+          0.17016114611124478,
+          0.07936425972809047,
+          -0.5182812316168632
+        ],
+        "count": [
+          1200,
+          1200,
+          1200
+        ]
+      },
+      "test_by_cue": {
+        "free": {
+          "mae_deg": [
+            23.537678289804905,
+            18.304765962475976,
+            8.901578659329552
+          ],
+          "r2": [
+            -0.8356017402747797,
+            0.24981234334772184,
+            -0.6269342735839576
+          ],
+          "count": [
+            804,
+            804,
+            804
+          ]
+        },
+        "home": {
+          "mae_deg": [
+            10.263221058797248,
+            31.379067219736005,
+            8.403832420243562
+          ],
+          "r2": [
+            -0.9864610601719492,
+            -0.4598244043941997,
+            -1.4567127253795706
+          ],
+          "count": [
+            250,
+            250,
+            250
+          ]
+        },
+        "rest_end": {
+          "mae_deg": [
+            71.38269549953276,
+            7.619926399772685,
+            15.671307630358974
+          ],
+          "r2": [
+            -2.7444284875480265,
+            -3.3483148892833325,
+            -1.4137928437510392
+          ],
+          "count": [
+            146,
+            146,
+            146
+          ]
+        }
+      },
+      "test_no_clipping": {
+        "mae_deg": [
+          27.511686569032694,
+          20.153202896747057,
+          9.758001866088135
+        ],
+        "r2": [
+          0.16786497707267012,
+          0.07595043232888232,
+          -0.49058256230866415
+        ],
+        "count": [
+          1085,
+          1085,
+          1085
+        ]
+      },
+      "inference_ms": 0.008167000487446785
+    },
+    {
+      "name": "RBF regression",
+      "artifact": "rbf.npz",
+      "validation": {
+        "mae_deg": [
+          13.907316647497687,
+          32.66089855314145,
+          6.530944309117299
+        ],
+        "r2": [
+          -23.151713832779098,
+          -12.296128511410465,
+          -0.42499579402933985
+        ],
+        "count": [
+          1162,
+          1162,
+          1162
+        ]
+      },
+      "test": {
+        "mae_deg": [
+          26.502681050948855,
+          21.986751242133554,
+          7.229364242654534
+        ],
+        "r2": [
+          0.24061748133676286,
+          0.03245414055489526,
+          -0.07344933342915438
+        ],
+        "count": [
+          1200,
+          1200,
+          1200
+        ]
+      },
+      "test_by_cue": {
+        "free": {
+          "mae_deg": [
+            19.616760084128877,
+            22.16608922491525,
+            5.9095182664395995
+          ],
+          "r2": [
+            -0.06113932529612742,
+            0.08059670641238836,
+            0.1408465101364993
+          ],
+          "count": [
+            804,
+            804,
+            804
+          ]
+        },
+        "home": {
+          "mae_deg": [
+            20.101569641191613,
+            31.414040056298624,
+            6.640734509844242
+          ],
+          "r2": [
+            -2.51366466846261,
+            -0.24891437273917583,
+            -0.560062616112333
+          ],
+          "count": [
+            250,
+            250,
+            250
+          ]
+        },
+        "rest_end": {
+          "mae_deg": [
+            75.38321741918563,
+            4.8565461620119486,
+            15.505484777444826
+          ],
+          "r2": [
+            -3.2586172565146807,
+            -1.13743431980713,
+            -1.3913500728071928
+          ],
+          "count": [
+            146,
+            146,
+            146
+          ]
+        }
+      },
+      "test_no_clipping": {
+        "mae_deg": [
+          28.153912129316133,
+          22.1864526355487,
+          7.393256931240549
+        ],
+        "r2": [
+          0.22478220398069837,
+          0.05089716286098023,
+          -0.06685611320162188
+        ],
+        "count": [
+          1085,
+          1085,
+          1085
+        ]
+      },
+      "inference_ms": 0.03827099862974137
+    },
+    {
+      "name": "Causal TCN",
+      "artifact": "tcn.npz",
+      "validation": {
+        "mae_deg": [
+          9.51932890885907,
+          32.17959670091259,
+          6.744348246367703
+        ],
+        "r2": [
+          -14.445374415137394,
+          -13.003309040433063,
+          -0.6117502016706655
+        ],
+        "count": [
+          1162,
+          1162,
+          1162
+        ]
+      },
+      "test": {
+        "mae_deg": [
+          25.167841831485312,
+          21.59483665594933,
+          9.32160389986804
+        ],
+        "r2": [
+          0.1960364453149389,
+          -0.004438827758240782,
+          -0.48205125140611327
+        ],
+        "count": [
+          1200,
+          1200,
+          1200
+        ]
+      },
+      "test_by_cue": {
+        "free": {
+          "mae_deg": [
+            24.222141388532556,
+            21.024544771797146,
+            8.360987948943645
+          ],
+          "r2": [
+            -1.545200464460815,
+            0.13709335966906944,
+            -0.5418778046927075
+          ],
+          "count": [
+            804,
+            804,
+            804
+          ]
+        },
+        "home": {
+          "mae_deg": [
+            13.130619431371919,
+            31.796711160585094,
+            9.007401086340204
+          ],
+          "r2": [
+            -2.7166736990208395,
+            -0.5000533686283857,
+            -1.8137203645977973
+          ],
+          "count": [
+            250,
+            250,
+            250
+          ]
+        },
+        "rest_end": {
+          "mae_deg": [
+            50.987353859994656,
+            7.266384934712437,
+            15.149589707574686
+          ],
+          "r2": [
+            -0.9486395583327341,
+            -2.5203116617844374,
+            -1.2744499580341841
+          ],
+          "count": [
+            146,
+            146,
+            146
+          ]
+        }
+      },
+      "test_no_clipping": {
+        "mae_deg": [
+          27.288894293704114,
+          21.019140001637677,
+          9.761980764683006
+        ],
+        "r2": [
+          0.1721314746745749,
+          0.04466885499874784,
+          -0.49139632001193645
+        ],
+        "count": [
+          1085,
+          1085,
+          1085
+        ]
+      },
+      "inference_ms": 0.2696244919206947
+    }
+  ],
+  "selected_model": "Ridge",
+  "targets": [
+    {
+      "name": "shoulder_lift",
+      "label": "Shoulder elevation",
+      "unit": "deg"
+    },
+    {
+      "name": "elbow_flex",
+      "label": "Elbow bend",
+      "unit": "deg"
+    },
+    {
+      "name": "wrist_flex",
+      "label": "Wrist bend \u00b7 unsigned proxy",
+      "unit": "deg"
+    }
+  ],
+  "caveats": [
+    "One approximately 133-second guided session, one placement: not evidence of next-day or new-person accuracy.",
+    "MediaPipe right is an explicit dataset assumption; a session manifest confirming the physical band side is missing.",
+    "Shoulder elevation and elbow bend are primary targets. Wrist is an unsigned bend proxy, not signed flexion or forearm rotation.",
+    "Camera exposure synchronization is unknown. The fixed label offset is an assumption; BLE receipt bursts do not measure acquisition latency.",
+    "The chronological validation interval mainly contains wrist exercises; model selection may transfer poorly to the final free-motion/home/rest interval.",
+    "EMG clipping is retained in the primary scores. Clipping varies by task; the final interval contains relatively little clipping.",
+    "A short forearm EMG history does not uniquely specify static shoulder/elbow posture. Task correlations can inflate within-session prediction.",
+    "Reported inference time is local feature-to-angle compute only; it excludes BLE, filtering/features, camera and robot delays.",
+    "No live robot control is enabled. These outputs are human camera-angle labels, not calibrated motor commands."
+  ],
+  "config": {
+    "sample_rate": 2048,
+    "window_samples": 205,
+    "hop_samples": 41,
+    "history": 31,
+    "warmup_samples": 2048
+  },
+  "clock": {
+    "fit": "first 60% of EMG device time; host receipt timestamps",
+    "slope": 0.9998179531588313,
+    "receipt_residual_p05_p50_p95_ms": [
+      -43.99353650514968,
+      1.844074169639498,
+      67.50754923559725
+    ]
+  },
+  "side": "right",
+  "seed": 7,
+  "trials": [
+    {
+      "model": "Ridge",
+      "alpha": 1,
+      "width": null,
+      "validation_loss": 1.0160363222786457
+    },
+    {
+      "model": "Ridge",
+      "alpha": 10,
+      "width": null,
+      "validation_loss": 1.0949794492035807
+    },
+    {
+      "model": "Ridge",
+      "alpha": 100,
+      "width": null,
+      "validation_loss": 1.1521853454897635
+    },
+    {
+      "model": "Ridge",
+      "alpha": 1000,
+      "width": null,
+      "validation_loss": 0.9809673765368738
+    },
+    {
+      "model": "Ridge",
+      "alpha": 10000,
+      "width": null,
+      "validation_loss": 0.793518638724051
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 0.1,
+      "width": 11.173776112584417,
+      "validation_loss": 1.0601011415830441
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 1,
+      "width": 11.173776112584417,
+      "validation_loss": 1.067009314191235
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 10,
+      "width": 11.173776112584417,
+      "validation_loss": 1.0629327100461425
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 100,
+      "width": 11.173776112584417,
+      "validation_loss": 0.9987860671666524
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 0.1,
+      "width": 22.347552225168833,
+      "validation_loss": 1.1721931516544235
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 1,
+      "width": 22.347552225168833,
+      "validation_loss": 1.2258309343782638
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 10,
+      "width": 22.347552225168833,
+      "validation_loss": 1.20471723294139
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 100,
+      "width": 22.347552225168833,
+      "validation_loss": 1.0682891530042284
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 0.1,
+      "width": 44.695104450337666,
+      "validation_loss": 1.2726402665701289
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 1,
+      "width": 44.695104450337666,
+      "validation_loss": 1.1943707203709781
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 10,
+      "width": 44.695104450337666,
+      "validation_loss": 1.0796350944793747
+    },
+    {
+      "model": "RBF regression",
+      "alpha": 100,
+      "width": 44.695104450337666,
+      "validation_loss": 0.9226220175200709
+    }
+  ],
+  "tcn_training": {
+    "best_epoch": 12,
+    "epochs_run": 27,
+    "history": [
+      {
+        "epoch": 1,
+        "validation_loss": 1.092260464024952
+      },
+      {
+        "epoch": 2,
+        "validation_loss": 0.891855690989857
+      },
+      {
+        "epoch": 3,
+        "validation_loss": 0.8965138014732815
+      },
+      {
+        "epoch": 4,
+        "validation_loss": 0.974490717910049
+      },
+      {
+        "epoch": 5,
+        "validation_loss": 0.9816535890178871
+      },
+      {
+        "epoch": 6,
+        "validation_loss": 0.866373552149161
+      },
+      {
+        "epoch": 7,
+        "validation_loss": 1.0944263101636706
+      },
+      {
+        "epoch": 8,
+        "validation_loss": 0.9347780524837466
+      },
+      {
+        "epoch": 9,
+        "validation_loss": 0.9134918912933644
+      },
+      {
+        "epoch": 10,
+        "validation_loss": 1.0079655870999142
+      },
+      {
+        "epoch": 11,
+        "validation_loss": 0.9229423381382288
+      },
+      {
+        "epoch": 12,
+        "validation_loss": 0.8505717019002621
+      },
+      {
+        "epoch": 13,
+        "validation_loss": 0.867689995399447
+      },
+      {
+        "epoch": 14,
+        "validation_loss": 0.9005774681596111
+      },
+      {
+        "epoch": 15,
+        "validation_loss": 0.8965689199878514
+      },
+      {
+        "epoch": 16,
+        "validation_loss": 0.9405911345656744
+      },
+      {
+        "epoch": 17,
+        "validation_loss": 0.9865345382806505
+      },
+      {
+        "epoch": 18,
+        "validation_loss": 0.928975234006318
+      },
+      {
+        "epoch": 19,
+        "validation_loss": 0.9478315206216477
+      },
+      {
+        "epoch": 20,
+        "validation_loss": 0.9671745639676775
+      },
+      {
+        "epoch": 21,
+        "validation_loss": 0.8972233331594108
+      },
+      {
+        "epoch": 22,
+        "validation_loss": 1.00999770512557
+      },
+      {
+        "epoch": 23,
+        "validation_loss": 0.9631587124707042
+      },
+      {
+        "epoch": 24,
+        "validation_loss": 1.0080856152311939
+      },
+      {
+        "epoch": 25,
+        "validation_loss": 0.9496085219665401
+      },
+      {
+        "epoch": 26,
+        "validation_loss": 0.9440849864157979
+      },
+      {
+        "epoch": 27,
+        "validation_loss": 1.0183393374047487
+      }
+    ]
+  },
+  "source_sha256": {
+    "emg.jsonl": "b61951666fcdf1eb405efbf91dc7e8dbc10c162bed70a660286efa36cd3b6a34",
+    "arm.jsonl": "b39a86cc0d87895f2e05dc0465dcf54ba0613719c26b7458c1bac88df59f931f"
+  },
+  "split_quality": {
+    "train": {
+      "excluded_windows": 20,
+      "windows_with_clipping": 943,
+      "target_std_deg": [
+        35.78050206379152,
+        22.423314364330025,
+        6.096644753652698
+      ],
+      "cues": {
+        "elbow": 1000,
+        "lift_forward": 999,
+        "ready": 146,
+        "rest": 200,
+        "sweep_side": 999,
+        "sync": 300,
+        "wrist_flex": 198
+      }
+    },
+    "validation": {
+      "excluded_windows": 2,
+      "windows_with_clipping": 752,
+      "target_std_deg": [
+        3.229739256320791,
+        9.710178130064223,
+        6.47588113742546
+      ],
+      "cues": {
+        "free": 29,
+        "wrist_flex": 384,
+        "wrist_roll": 749
+      }
+    },
+    "test": {
+      "excluded_windows": 4,
+      "windows_with_clipping": 115,
+      "target_std_deg": [
+        39.82785873493885,
+        28.257940283293358,
+        9.510684200129948
+      ],
+      "cues": {
+        "free": 804,
+        "home": 250,
+        "rest_end": 146
+      }
+    }
+  }
+}

@@ -475,7 +475,7 @@ def main(argv=None):
                           for k, p in splits.items()},
     }
     write_json(args.output / "metrics.json", result)
-    traces = [{"t": float(t-t0), "actual": [None if not np.isfinite(v) else float(v) for v in a],
+    traces = [{"t": float(t-t0), "segment": "test", "actual": [None if not np.isfinite(v) else float(v) for v in a],
                "predicted": p.tolist()} for t, a, p in zip(splits["test"]["times"], splits["test"]["y"], test_predictions[selected])]
     report_data = {**result, "traces": traces}
     template = Path(__file__).resolve().parent.parent / "web" / "benchmark" / "report.html"

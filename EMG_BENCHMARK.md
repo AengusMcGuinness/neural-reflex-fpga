@@ -12,6 +12,10 @@ not robot motor positions.
 
 ## Run locally
 
+The first run's [graphs and results](reports/emg-20261107/README.md) are committed
+alongside the code. Correlations are exploratory; the held-out model does not yet
+provide high-fidelity angle control.
+
 Python 3.11 or newer, NumPy, SciPy and PyTorch are needed for training. Matplotlib
 is needed for the correlation plots. The offline commands do not require paired
 EMG hardware, a camera, or the robot.
@@ -28,6 +32,10 @@ python -m neural_reflex.recording_audit \
 python -m neural_reflex.emg_benchmark \
   data/sessions/20261107-143640/blocks/arm-reach \
   --side right --output .local/benchmark-results/chronological-v1
+
+python -m neural_reflex.emg_correlations \
+  data/sessions/20261107-143640/blocks/arm-reach \
+  --side right --output .local/benchmark-results/correlations --permutations 1000
 ```
 
 Use a new output directory for each run; training refuses to overwrite one.
@@ -112,3 +120,30 @@ compute timings exclude acquisition, feature extraction, transport and actuation
 
 The collaborator's original alternating-chunk results are historical within-session
 baselines. They are not directly comparable to this chronological test protocol.
+
+## Correlation figures
+
+The correlation command produces PNG and PDF copies of an eight-channel/joint
+heatmap, a recording timeline, and a block-shuffle comparison. The input feature
+is the log RMS envelope of causally filtered EMG in 100 ms windows at roughly
+20 ms intervals. Alignment is fixed at +50 ms, with no lag search.
+
+The second heatmap removes each exercise's mean from EMG and joint angle. This
+reduces differences between exercises but does not remove every effect of cue,
+movement phase, time, or muscle co-contraction.
+
+The predeclared primary reference shuffles contiguous 5-second EMG blocks jointly
+across all eight channels, using 1,000 permutations. Two- and ten-second blocks
+are sensitivity checks. Each reference takes the maximum absolute correlation
+over all 24 channel/joint pairs; overall and cue-demeaned matrices are separate
+analysis families. The final incomplete block is omitted, so reference coefficients
+can differ slightly from the full heatmap. Missing camera intervals also make
+block lengths approximate.
+
+These are **exploratory block-reordering comparisons**, conditional on blocks
+being exchangeable. That assumption is questionable in a scripted, nonstationary
+session. Cue demeaning is recomputed after shuffling and is not a test of
+independence conditional on cue. Do not interpret the empirical p values as
+population significance, causality, or proof that a joint can be controlled.
+Ordinary sample-wise correlation p values would ignore the strong temporal
+dependence. See [time-series correlation testing and its assumptions](https://doi.org/10.1371/journal.pbio.3002758).

@@ -187,7 +187,7 @@
             splitName === "test" ? "split-test" : "");
           targets.forEach((target, index) => cell(row, scoreText(model[splitName], index), "metric"));
           cell(row, splitName === "validation" && finite(model.inference_ms)
-            ? one(model.inference_ms) + " ms" : "—");
+            ? (model.inference_ms < 1 ? model.inference_ms.toFixed(3) : one(model.inference_ms)) + " ms" : "—");
           byId("comparison-body").append(row);
         }
       }
