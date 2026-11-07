@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correlation Report</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif;
+    --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --hot: 234, 88, 12; --warn: #c2410c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #222; --hot: 251, 146, 60; --warn: #fb923c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 600; }
+  h2 { margin: 32px 0 6px; font-size: 1rem; font-weight: 600; }
+  h3 { margin: 18px 0 6px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+  .muted { color: var(--muted); font-size: .85rem; } .warn { color: var(--warn); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; min-width: 100%; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; } th { color: var(--muted); font-weight: 500; }
+  td.cell { text-align: center; min-width: 58px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 24px; margin: 10px 0; font-size: .88rem; }
+  .facts b { display: block; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Correlation report</h1>
+  <div class="muted" id="intro"></div>
+  <h2>Across all blocks</h2>
+  <div class="scroll"><table id="summary"></table></div>
+  <p class="muted">|r| is the strength of the straight-line relationship (0 none, 1 perfect), averaged over blocks.
+    Band tilt = the band orientation axis that best follows that signal. Grip strength is computed from EMG, so its EMG number is circular.</p>
+  <div id="blocks"></div>
+</main>
+<script>
+"use strict";
+const D = __CORRELATE_DATA__;
+const pretty = s => s.replace("_", " ");
+const fmt = v => v === null || v === undefined ? "—" : v.toFixed(2);
+const heat = v => v === null ? "" : `background: rgba(var(--hot), ${Math.min(1, Math.abs(v) / 0.8).toFixed(2)})`;
+document.getElementById("intro").textContent =
+  `${D.blocks.length} block${D.blocks.length > 1 ? "s" : ""}: ${D.blocks.map(b => b.block).join(", ")}`;
+document.getElementById("summary").innerHTML =
+  `<tr><th>Signal</th><th>Best EMG channel</th><th>EMG |r|</th><th>Band tilt |r|</th></tr>` +
+  D.signals.map(s => { const x = D.summary[s];
+    return `<tr><td>${pretty(s)}${x.circular ? ' <span class="muted">(circular)</span>' : ""}</td>
+      <td>${x.best_emg_channel ? "ch" + x.best_emg_channel : "—"}</td>
+      <td class="cell" style="${heat(x.best_emg_abs_r)}">${fmt(x.best_emg_abs_r)}</td>
+      <td class="cell" style="${heat(x.band_tilt_abs_r)}">${fmt(x.band_tilt_abs_r)}</td></tr>`; }).join("");
+
+const out = document.getElementById("blocks");
+for (const b of D.blocks) {
+  const sec = document.createElement("section");
+  const visible = b.coverage.reduce((a, c) => a + c.band_arm_visible, 0), frames = b.coverage.reduce((a, c) => a + c.frames, 0);
+  const lagOk = Math.abs(b.timing.camera_lag_ms) <= 100;
+  sec.innerHTML = `<h2>${b.block}</h2>
+    <div class="facts">
+      <div><b>${b.seconds.toFixed(0)} s</b><span class="muted">recorded</span></div>
+      <div><b>${(100 * visible / Math.max(frames, 1)).toFixed(0)}%</b><span class="muted">band arm ("${b.side}") visible</span></div>
+      <div><b class="${lagOk ? "" : "warn"}">${b.timing.camera_lag_ms >= 0 ? "+" : ""}${b.timing.camera_lag_ms.toFixed(0)} ms</b><span class="muted">camera vs band timing</span></div>
+      <div><b>${b.pan_defined_pct.toFixed(0)}%</b><span class="muted">time base rotation defined</span></div>
+    </div>
+    <h3>EMG channel activity vs each signal (r)</h3>
+    <div class="scroll"><table><tr><th>Signal</th>${[1,2,3,4,5,6,7,8].map(c => `<th>ch${c}</th>`).join("")}<th>Band tilt |r|</th></tr>
+    ${D.signals.map(s => `<tr><td>${pretty(s)}</td>${b.emg[s].map(v => `<td class="cell" style="${heat(v)}">${fmt(v)}</td>`).join("")}
+      <td class="cell" style="${heat(b.motion[s].best_abs_r)}">${fmt(b.motion[s].best_abs_r)}</td></tr>`).join("")}</table></div>
+    <h3>Coverage per protocol step</h3>
+    <div class="scroll"><table><tr><th>Step</th><th>Frames</th><th>Arm visible</th><th>Shoulder lift (5–95%)</th><th>Elbow (5–95%)</th></tr>
+    ${b.coverage.map(c => { const pct = 100 * c.band_arm_visible / Math.max(c.frames, 1);
+      const range = r => r ? `${r[0].toFixed(0)}° – ${r[1].toFixed(0)}°` : "—";
+      return `<tr><td>${pretty(c.step)}</td><td>${c.frames}</td><td class="${pct < 50 ? "warn" : ""}">${pct.toFixed(0)}%</td>
+        <td>${range(c.shoulder_lift)}</td><td>${range(c.elbow_flex)}</td></tr>`; }).join("")}</table></div>`;
+  out.append(sec);
+}
+</script>
+</body>
+</html>
