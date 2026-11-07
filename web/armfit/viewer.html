@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arm Prediction Overlay</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif;
+    --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --actual: #111; --pred: #ea580c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #222; --actual: #eee; --pred: #fb923c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+  .muted { color: var(--muted); font-size: .85rem; }
+  .legend span { margin-left: 14px; font-size: .85rem; }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; margin-top: 20px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  canvas { display: block; width: 100%; }
+  #arm { height: 360px; } .trace { height: 110px; margin-top: 6px; }
+  .controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  .controls input { flex: 1; }
+  button { font: inherit; font-size: .85rem; color: var(--text); background: none;
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .label { font-size: .8rem; color: var(--muted); margin-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Band → arm: held-out replay</h1><div id="summary" class="muted"></div></div>
+    <div class="legend"><span><i style="background:var(--actual)"></i>Camera (actual)</span><span><i style="background:var(--pred)"></i>Predicted from band</span></div>
+  </header>
+  <div class="grid">
+    <section>
+      <canvas id="arm"></canvas>
+      <div class="controls"><button id="play" type="button">Pause</button>
+        <input id="scrub" type="range" min="0" value="0" aria-label="Time"><span id="clock" class="muted"></span></div>
+      <div id="traces"></div>
+    </section>
+    <section>
+      <table><thead id="mhead"></thead><tbody id="metrics"></tbody></table>
+      <p class="muted">R² on held-out chunks: 1 = perfect, 0 = no better than guessing the average angle.
+        Rows compare which band signals carry the arm information. The replay uses EMG + band motion.</p>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const DATA = __ARMFIT_DATA__;
+const F = DATA.frames, T = DATA.targets;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n);
+const fit = c => { const d = devicePixelRatio || 1, w = Math.round(c.clientWidth * d), h = Math.round(c.clientHeight * d);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [c.getContext("2d"), w, h, d]; };
+const pretty = s => s.replace("_", " ");
+document.getElementById("summary").textContent = DATA.blocks.map(b =>
+  `${b.name} · band arm = MediaPipe "${b.side}"`).join(", ") + ` · ${(F.length * DATA.hop_ms / 1000).toFixed(0)} s held out`;
+document.getElementById("mhead").innerHTML = `<tr><th>Input</th>${T.map(t => `<th>${pretty(t)}</th>`).join("")}</tr>`;
+document.getElementById("metrics").innerHTML = Object.entries(DATA.metrics).map(([name, m]) =>
+  `<tr><td>${name}</td>${T.map(t => `<td>${m[t].r2 === null ? "—" : m[t].r2.toFixed(2)}</td>`).join("")}</tr>`).join("");
+const traceBox = document.getElementById("traces");
+const traces = T.map(t => { const l = document.createElement("div"); l.className = "label"; l.textContent = pretty(t);
+  const c = document.createElement("canvas"); c.className = "trace"; traceBox.append(l, c); return { c, l, t }; });
+let index = 0, playing = true;
+
+function drawArm() {
+  const [ctx, w, h, d] = fit(document.getElementById("arm"));
+  ctx.clearRect(0, 0, w, h);
+  const s = Math.min(w, h) / 2.4, ox = w / 2, oy = h * 0.42, f = F[index];
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 2 * d;
+  ctx.beginPath(); ctx.moveTo(ox, oy - 0.5 * s); ctx.lineTo(ox, oy + 0.9 * s); ctx.stroke();      // torso
+  for (const [key, color, width] of [["actual", css("--actual"), 9], ["predicted", css("--pred"), 6]]) {
+    const [lift, elbow, wrist] = f[key].map(v => v * Math.PI / 180);
+    // Side view: 0° lift hangs down, 180° points up; elbow and wrist bend forward.
+    let a = lift, x = ox, y = oy; const pts = [[x, y]];
+    for (const [len, bend] of [[0.85, 0], [0.75, elbow], [0.25, wrist]]) {
+      a += bend; x += len * s * Math.sin(a); y += len * s * Math.cos(a); pts.push([x, y]);
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = width * d; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.stroke();
+  }
+  ctx.fillStyle = css("--muted"); ctx.font = `${12 * d}px system-ui`;
+  ctx.fillText(f.cue ? `step: ${f.cue.replace("_", " ")}` : "", 8 * d, 18 * d);
+}
+
+function drawTraces() {
+  traces.forEach(({ c, l, t }, j) => {
+    const [ctx, w, h, d] = fit(c); ctx.clearRect(0, 0, w, h);
+    let lo = Infinity, hi = -Infinity;
+    for (const f of F) for (const v of [f.actual[j], f.predicted[j]]) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const pad = (hi - lo) * 0.1 || 1; lo -= pad; hi += pad;
+    const X = i => i / (F.length - 1) * w, Y = v => h - (v - lo) / (hi - lo) * h;
+    for (const [key, color] of [["actual", css("--actual")], ["predicted", css("--pred")]]) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5 * d; ctx.beginPath();
+      F.forEach((f, i) => i ? ctx.lineTo(X(i), Y(f[key][j])) : ctx.moveTo(X(i), Y(f[key][j]))); ctx.stroke();
+    }
+    ctx.strokeStyle = css("--muted"); ctx.lineWidth = d; ctx.beginPath(); ctx.moveTo(X(index), 0); ctx.lineTo(X(index), h); ctx.stroke();
+    l.textContent = `${pretty(t)}: actual ${F[index].actual[j].toFixed(0)}°, predicted ${F[index].predicted[j].toFixed(0)}°`;
+    c.onclick = e => { const r = c.getBoundingClientRect(); index = Math.round((e.clientX - r.left) / r.width * (F.length - 1)); };
+  });
+}
+
+const scrub = document.getElementById("scrub"); scrub.max = F.length - 1;
+scrub.oninput = () => { index = +scrub.value; };
+document.getElementById("play").onclick = e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; };
+let last = performance.now(), acc = 0;
+(function loop(now) {
+  if (playing) { acc += now - last; while (acc >= DATA.hop_ms) { acc -= DATA.hop_ms; index = (index + 1) % F.length; } }
+  last = now; scrub.value = index; document.getElementById("clock").textContent = `${F[index].t.toFixed(1)} s`;
+  drawArm(); drawTraces(); requestAnimationFrame(loop);
+})(performance.now());
+</script>
+</body>
+</html>

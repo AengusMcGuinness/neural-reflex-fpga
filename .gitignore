@@ -17,3 +17,5 @@ __pycache__/
 data/private/
 data/raw/
 data/models/
+data/sessions/
+*.task

@@ -260,6 +260,93 @@ def packetize(args):
     print(f"Packed {batches} batches ({batches * 16} raw samples) to {output}")
 
 
+def session_start(args):
+    from .session import create_session
+    path = create_session(args.root, args.subject, args.wrist)
+    print(path)
+    print(f"scripts/record_block.sh {path} clench 'PASTE_STREAM_URL'")
+
+
+def preflight(args):
+    from .pose import ensure_hand_model
+    from .preflight import report
+    try:
+        ensure_hand_model(args.model)
+    except OSError as error:
+        print(f"could not download hand landmarker: {error}", file=sys.stderr)
+    ready, lines = report(args.model)
+    print("\n".join(lines))
+    if not ready:
+        raise SystemExit(2)
+
+
+def refuse_overwrite(*paths):
+    """Recorders open files fresh; never silently replace an earlier recording."""
+    for path in paths:
+        if path and Path(path).exists() and Path(path).stat().st_size > 0:
+            raise ValueError(f"{path} already has a recording. Use a new block name "
+                             "(or delete that folder first) so it isn't overwritten.")
+
+
+def record_emg(args):
+    refuse_overwrite(args.output, args.motion_output)
+    import io
+    import socket
+    import urllib.request
+    from .kinesis import assert_local_stream_url, iter_emg_records
+    url = assert_local_stream_url(args.url)
+    socket.setdefaulttimeout(5)
+    request = urllib.request.Request(
+        url, headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    motion_count = 0
+    motion_path = Path(args.motion_output) if args.motion_output else None
+    motion_sink = motion_path.open("w", encoding="utf-8") if motion_path else None
+
+    def on_motion(event):
+        nonlocal motion_count
+        event["block"] = args.block
+        motion_sink.write(json.dumps(event) + "\n")
+        motion_count += 1
+
+    try:
+        with opener.open(request, timeout=5) as response, output.open("w", encoding="utf-8") as sink:
+            for record in iter_emg_records(io.TextIOWrapper(response, encoding="utf-8"),
+                                           on_motion if motion_sink else None):
+                record["block"] = args.block
+                sink.write(json.dumps(record) + "\n")
+                sink.flush()
+                if motion_sink:
+                    motion_sink.flush()
+                count += 1
+    except (KeyboardInterrupt, TimeoutError, socket.timeout):
+        pass
+    finally:
+        if motion_sink:
+            motion_sink.close()
+    print(f"Wrote {count} raw EMG batches to {output}", file=sys.stderr)
+    if motion_path:
+        print(f"Wrote {motion_count} orientation/gyro/gesture events to {motion_path}", file=sys.stderr)
+
+
+def record_arm(args):
+    refuse_overwrite(args.output)
+    from .arm_pose import record_arm_pose
+    count = record_arm_pose(args.output, args.camera, args.block, args.model, args.side,
+                            guided=not args.free)
+    print(f"Wrote {count} arm pose frames to {args.output}", file=sys.stderr)
+
+
+def record_pose(args):
+    refuse_overwrite(args.output)
+    from .pose import record_pose as capture_pose
+    count = capture_pose(args.output, args.camera, args.block, args.model)
+    print(f"Wrote {count} pose frames to {args.output}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Raw EMG capture and virtual gripper baseline")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -303,6 +390,37 @@ def main():
     packetizer.add_argument("--input", required=True)
     packetizer.add_argument("--output", default="data/private/fpga_packets.bin")
     packetizer.set_defaults(func=packetize)
+    starter = commands.add_parser("session", help="create an empty recording session")
+    starter.add_argument("--subject", required=True)
+    starter.add_argument("--wrist", required=True, choices=("left", "right"))
+    starter.add_argument("--root", default="data/sessions")
+    starter.set_defaults(func=session_start)
+    checker = commands.add_parser("preflight", help="check recording dependencies")
+    checker.add_argument("--model", default="models/hand_landmarker.task")
+    checker.set_defaults(func=preflight)
+    emg_recorder = commands.add_parser("record-emg", help="save raw Kinesis EMG batches")
+    emg_recorder.add_argument("--url", required=True)
+    emg_recorder.add_argument("--output", required=True)
+    emg_recorder.add_argument("--block", default="unspecified")
+    emg_recorder.add_argument("--motion-output",
+                              help="also save band orientation, gyro and gestures to this JSONL")
+    emg_recorder.set_defaults(func=record_emg)
+    pose_recorder = commands.add_parser("record-pose", help="save webcam hand angles")
+    pose_recorder.add_argument("--output", required=True)
+    pose_recorder.add_argument("--block", default="unspecified")
+    pose_recorder.add_argument("--camera", type=int, default=0)
+    pose_recorder.add_argument("--model", default="models/hand_landmarker.task")
+    pose_recorder.set_defaults(func=record_pose)
+    arm_recorder = commands.add_parser("record-arm", help="save webcam arm angles (MediaPipe Pose)")
+    arm_recorder.add_argument("--output", required=True)
+    arm_recorder.add_argument("--block", default="unspecified")
+    arm_recorder.add_argument("--camera", type=int, default=0)
+    arm_recorder.add_argument("--side", choices=("left", "right"), default="right",
+                              help="the arm wearing the band")
+    arm_recorder.add_argument("--model", default="models/pose_landmarker_full.task")
+    arm_recorder.add_argument("--free", action="store_true",
+                              help="no guided steps or time limit; stop with q")
+    arm_recorder.set_defaults(func=record_arm)
     args = parser.parse_args()
     try:
         if hasattr(args, "sample_rate") and args.sample_rate <= 0:
