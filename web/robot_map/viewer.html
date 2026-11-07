@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot Mapping Preview</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif;
+    --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --human: #111; --robot: #ea580c; --limit: #dc2626; --target: #94a3b8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #222; --human: #eee; --robot: #fb923c; --limit: #f87171; --target: #64748b; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+  .muted { color: var(--muted); font-size: .85rem; }
+  .legend span { margin-left: 14px; font-size: .85rem; } .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; margin-top: 20px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  canvas { display: block; width: 100%; }
+  #arm { height: 360px; } .lane { height: 64px; }
+  .lane-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); margin-top: 10px; }
+  .lane-label b { color: var(--text); font-weight: 600; }
+  .warn { color: var(--limit); }
+  .controls { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  .controls input { flex: 1; }
+  button { font: inherit; font-size: .85rem; color: var(--text); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; margin-top: 18px; }
+  th, td { text-align: right; padding: 5px 4px; border-bottom: 1px solid var(--line); } th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Human → SO-ARM101 mapping (dry run)</h1><div id="summary" class="muted"></div></div>
+    <div class="legend"><span><i style="background:var(--human)"></i>You (camera/band)</span><span><i style="background:var(--robot)"></i>Robot (simulated)</span><span><i style="background:var(--limit)"></i>Joint limit</span></div>
+  </header>
+  <div class="grid">
+    <section>
+      <canvas id="arm"></canvas>
+      <div class="controls"><button id="play" type="button">Pause</button>
+        <input id="scrub" type="range" min="0" value="0" aria-label="Time"><span id="clock" class="muted"></span></div>
+      <table><thead><tr><th>Joint</th><th>Dir checked</th><th>Clipped</th><th>Needs</th><th>Cap</th><th>Lag @1×</th></tr></thead><tbody id="report"></tbody></table>
+      <p class="muted">Needs = 95th-percentile speed your movement asks for. Lag = how far the robot trails at real-time speed.
+        The replay on the right is slowed down so every joint stays within about 5° of its target.</p>
+    </section>
+    <section id="lanes"></section>
+  </div>
+</main>
+<script>
+"use strict";
+const D = __ROBOT_DATA__;
+const J = D.joints, N = D.robot[J[0]].length;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n);
+const fit = c => { const d = devicePixelRatio || 1, w = Math.round(c.clientWidth * d), h = Math.round(c.clientHeight * d);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [c.getContext("2d"), w, h, d]; };
+const pretty = s => s.replace("_", " ");
+const deg = (j, tick) => (tick - D.home[j]) / D.k;
+document.getElementById("summary").textContent =
+  `replayed ${D.slowdown}× slower at "${D.speed}" speed · ${(N * D.dt_s / 60).toFixed(1)} min`;
+document.getElementById("report").innerHTML = J.map(j => { const r = D.report[j];
+  return `<tr><td>${pretty(j)}</td><td class="${D.verified[j] ? "" : "warn"}">${D.verified[j] ? "yes" : "no"}</td>
+    <td>${D.clamped_pct[j].toFixed(0)}%</td><td>${r.p95_speed_deg_s.toFixed(0)}°/s</td><td>${r.cap_deg_s.toFixed(0)}°/s</td>
+    <td>${r.realtime_lag_p95_deg.toFixed(0)}°</td></tr>`; }).join("");
+const lanes = J.map(j => { const label = document.createElement("div"); label.className = "lane-label";
+  const c = document.createElement("canvas"); c.className = "lane"; document.getElementById("lanes").append(label, c);
+  c.onclick = e => { const r = c.getBoundingClientRect(); index = Math.round((e.clientX - r.left) / r.width * (N - 1)); };
+  return { j, label, c }; });
+let index = 0, playing = true;
+
+function drawArm() {
+  const [ctx, w, h, d] = fit(document.getElementById("arm")); ctx.clearRect(0, 0, w, h);
+  const s = Math.min(w * 0.6, h) / 2.3, ox = w * 0.38, oy = h * 0.55;
+  // Both arms drawn from the shoulder pivot: 0 = straight up, positive tilts forward (right).
+  // Your lift is drawn as you moved; the robot's is scaled (it cannot point down through its table).
+  const human = { lift: 180 - D.human.shoulder_lift[index], elbow: D.human.elbow_flex[index], wrist: D.human.wrist_flex[index] };
+  const robot = { lift: deg("shoulder_lift", D.robot.shoulder_lift[index]),   // +ticks = forward (checked)
+                  elbow: deg("elbow_flex", D.robot.elbow_flex[index]), wrist: deg("wrist_flex", D.robot.wrist_flex[index]) };
+  ctx.fillStyle = css("--muted"); ctx.font = `${11 * d}px system-ui`;
+  ctx.fillText("side view · robot shoulder lift is scaled to fit its range", 8 * d, h - 8 * d);
+  for (const [a, color, width] of [[human, css("--human"), 9], [robot, css("--robot"), 6]]) {
+    let ang = a.lift * Math.PI / 180, x = ox, y = oy; const pts = [[x, y]];
+    for (const [len, bend] of [[0.9, 0], [0.95, a.elbow], [0.6, a.wrist]]) {
+      ang += bend * Math.PI / 180; x += len * s * Math.sin(ang); y -= len * s * Math.cos(ang); pts.push([x, y]);
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = width * d; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.stroke();
+  }
+  // Top view of base rotation.
+  const cx = w * 0.86, cy = h * 0.22, r = Math.min(w * 0.1, 52 * d);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 2 * d; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
+  for (const [v, color] of [[D.human.shoulder_pan[index], css("--human")], [deg("shoulder_pan", D.robot.shoulder_pan[index]), css("--robot")]]) {
+    const a = v * Math.PI / 180; ctx.strokeStyle = color; ctx.lineWidth = 4 * d;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r * Math.sin(a), cy - r * Math.cos(a)); ctx.stroke();
+  }
+  ctx.fillStyle = css("--muted"); ctx.font = `${11 * d}px system-ui`; ctx.textAlign = "center";
+  ctx.fillText("base (top view)", cx, cy + r + 16 * d); ctx.textAlign = "left";
+  const g = D.robot.gripper[index], lo = D.limits.gripper[0], hi = D.limits.gripper[1];
+  ctx.fillText(`grip ${(100 * D.human.gripper[index]).toFixed(0)}%`, cx - r, cy + r + 40 * d);
+  ctx.fillStyle = css("--line"); ctx.fillRect(cx - r, cy + r + 48 * d, 2 * r, 6 * d);
+  ctx.fillStyle = css("--robot"); ctx.fillRect(cx - r, cy + r + 48 * d, 2 * r * (g - lo) / (hi - lo), 6 * d);
+  ctx.fillStyle = css("--muted"); ctx.fillText(D.cue[index] ? `step: ${pretty(D.cue[index])}` : "", 8 * d, 18 * d);
+}
+
+function drawLanes() {
+  for (const { j, label, c } of lanes) {
+    const [ctx, w, h, d] = fit(c); ctx.clearRect(0, 0, w, h);
+    const [lo, hi] = D.limits[j], pad = (hi - lo) * 0.04, a = lo - pad, b = hi + pad;
+    const X = i => i / (N - 1) * w, Y = v => h - (v - a) / (b - a) * h;
+    ctx.fillStyle = css("--line"); ctx.fillRect(0, Y(hi), w, Y(lo) - Y(hi));
+    ctx.strokeStyle = css("--limit"); ctx.lineWidth = d; ctx.setLineDash([4 * d, 3 * d]);
+    for (const v of [lo, hi]) { ctx.beginPath(); ctx.moveTo(0, Y(v)); ctx.lineTo(w, Y(v)); ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.strokeStyle = css("--muted"); ctx.beginPath(); ctx.moveTo(0, Y(D.home[j])); ctx.lineTo(w, Y(D.home[j])); ctx.stroke();
+    for (const [key, color, lw] of [["target", css("--target"), 1.2], ["robot", css("--robot"), 1.8]]) {
+      ctx.strokeStyle = color; ctx.lineWidth = lw * d; ctx.beginPath();
+      D[key][j].forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke();
+    }
+    ctx.strokeStyle = css("--text"); ctx.lineWidth = d; ctx.beginPath(); ctx.moveTo(X(index), 0); ctx.lineTo(X(index), h); ctx.stroke();
+    const t = D.target[j][index], r = D.robot[j][index];
+    label.innerHTML = `<b>${pretty(j)}</b><span>target ${t} · robot ${r} ticks (${deg(j, r) >= 0 ? "+" : ""}${deg(j, r).toFixed(0)}° from home) · limits ${lo}–${hi}</span>`;
+  }
+}
+
+const scrub = document.getElementById("scrub"); scrub.max = N - 1; scrub.oninput = () => { index = +scrub.value; };
+document.getElementById("play").onclick = e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; };
+let last = performance.now(), acc = 0;
+(function loop(now) {
+  if (playing) { acc += (now - last) * D.slowdown; while (acc >= D.dt_s * 1000 * D.slowdown) { acc -= D.dt_s * 1000 * D.slowdown; index = (index + 1) % N; } }
+  last = now; scrub.value = index; document.getElementById("clock").textContent = `${(index * D.dt_s).toFixed(1)} s`;
+  drawArm(); drawLanes(); requestAnimationFrame(loop);
+})(performance.now());
+</script>
+</body>
+</html>
