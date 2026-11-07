@@ -62,6 +62,8 @@ joint you want to move. Drag its slider for continuous position control;
 the newest target replaces the previous target while you drag. Click `−`
 or `+` for a fine nudge, or hold either button for sustained movement and
 release to pause. Exact tick input remains available.
+On this arm, shoulder lift uses **smaller ticks to raise** and **larger ticks
+to lower**. Its buttons and slider direction hint use those verified labels.
 
 Choose **Fine**, **Normal**, or **Fast** speed (60, 180, or 360 encoder ticks
 per second, approximately 5, 16, or 32 degrees per second). The default

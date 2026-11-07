@@ -54,6 +54,8 @@ h2 { margin: 0 0 6px; font-size: 1.25rem; }
 .joint-motion { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; border-top: 1px solid #edf0f5; padding-top: 12px; }
 .joint-buttons { display: flex; align-items: center; gap: 7px; }
 .joint-buttons button { min-width: 46px; font-size: 1.25rem; line-height: 1; }
+.joint-buttons button.directional { font-size: .92rem; }
+.direction-hint { margin: 10px 0 0; color: #315fc1; font-size: .88rem; font-weight: 650; }
 .target-control { display: grid; grid-template-columns: auto minmax(90px, 1fr) 84px auto; align-items: center; gap: 8px; }
 .target-control label { font-size: .82rem; font-weight: 700; color: #405268; }
 .target-control input[type="range"] { width: 100%; min-width: 90px; accent-color: #315fc1; cursor: pointer; }

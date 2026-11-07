@@ -324,9 +324,12 @@ function createRow(joint) {
   for (const sign of [-1, 1]) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = sign < 0 ? '−' : '+';
-    button.setAttribute('aria-label',
-      (sign < 0 ? 'Decrease ' : 'Increase ') + label(joint.name) + ' by selected step');
+    const lift = joint.name === 'shoulder_lift';
+    button.textContent = lift ? (sign < 0 ? '↑ Raise' : '↓ Lower') : (sign < 0 ? '−' : '+');
+    if (lift) button.classList.add('directional');
+    button.setAttribute('aria-label', (lift
+      ? (sign < 0 ? 'Raise ' : 'Lower ')
+      : (sign < 0 ? 'Decrease ' : 'Increase ')) + label(joint.name) + ' by selected step');
     bindStepButton(button, joint.name, sign);
     stepButtons.push(button);
     buttons.append(button);
@@ -390,7 +393,14 @@ function createRow(joint) {
   motion.append(buttons, targetControl);
   const targetRange = document.createElement('p');
   targetRange.className = 'target-range';
-  row.append(top, metrics, motion, targetRange);
+  row.append(top, metrics, motion);
+  if (joint.name === 'shoulder_lift') {
+    const directionHint = document.createElement('p');
+    directionHint.className = 'direction-hint';
+    directionHint.textContent = '← Raise: smaller ticks · Lower: larger ticks →';
+    row.append(directionHint);
+  }
+  row.append(targetRange);
   joints.append(row);
   ui.targetRange = targetRange;
   rows.set(joint.name, ui);
