@@ -45,3 +45,5 @@ The one-person virtual gripper is the project. The second FPGA and Medra arm inc
 - [MediaPipe Hand Landmarker live stream API](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HandLandmarker)
 
 This repository currently contains the project plan. Sensor integration, RTL, models, robot control, and benchmarks have not been implemented.
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the concrete band-to-FPGA-to-arm build sequence and proposed FrontPanel endpoint map.
