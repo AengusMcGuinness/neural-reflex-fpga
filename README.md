@@ -44,8 +44,8 @@ The one-person virtual gripper is the project. The second FPGA and Medra arm inc
 - [FrontPanel SDK release notes](https://docs.opalkelly.com/fpsdk/release-notes/)
 - [MediaPipe Hand Landmarker live stream API](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HandLandmarker)
 
-The repo now includes a runnable raw-EMG recording and CPU decoder baseline. It has been smoke-tested with synthetic data; live band integration awaits the Mac API sample. Sensor-specific integration, webcam labels, RTL, robot control, and benchmarks have not been implemented.
+The repo now includes a runnable raw-EMG recording and CPU decoder baseline. It has been smoke-tested with synthetic data; live band integration needs either Axo's Mac API sample or a verified public raw-stream source. Sensor-specific integration, webcam labels, RTL, robot control, and benchmarks have not been implemented.
 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the concrete band-to-FPGA-to-arm build sequence and proposed FrontPanel endpoint map.
 
-**Have the band but no robot arm?** Start with [BAND_FIRST.md](BAND_FIRST.md). It includes the message to send Axo for the raw EMG API, capture format, synthetic smoke test, rough calibration, and live virtual-gripper command.
+**Have the band but no robot arm?** Start with [BAND_FIRST.md](BAND_FIRST.md). It compares Axo and public raw-stream options and includes the capture format, synthetic smoke test, rough calibration, and live virtual-gripper command.

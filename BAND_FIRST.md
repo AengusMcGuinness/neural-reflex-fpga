@@ -2,9 +2,16 @@
 
 The code here is a **CPU baseline** and recording harness. No Meta/Axo SDK API is assumed, and no FPGA inference is claimed yet. The raw EMG stream and a measured sample rate are the only vendor inputs needed for this phase.
 
-## 1. Get the raw EMG API
+## 1. Choose a raw EMG source
 
-Ask Jason Hou for the **Mac raw eight-channel EMG quickstart or sample code**, connection steps, actual sample rate, units, channel order, and timestamp semantics. The event description mentions a Mac API but does not give a download link. Do not build on the band's high-level gesture events: the Axo challenge requires raw EMG.
+The event description says Axo will provide a Mac API but does not include a link. Ask Jason Hou for its **raw eight-channel EMG quickstart or sample code**, connection steps, actual sample rate, units, channel order, and timestamp semantics. This is likely the quickest route for a loaned hackathon band, but you do not have to wait to develop or inspect public examples. Do not build on the band's high-level gesture events: the Axo challenge requires raw EMG.
+
+Public alternatives exist:
+
+- [callbacked/neural-band-poc](https://github.com/callbacked/neural-band-poc/) reports a Mac dashboard with live eight-channel sEMG. Its README says to unpair the band from the Meta app and pair it again for the console, and notes experimental ADC values and dropped samples.
+- [meta-neural-py](https://pypi.org/project/meta-neural-py/) is an experimental Python library for direct band access with EMG support. Its own package page says it has limited hardware testing and uses an explicit ownership/enrollment ceremony.
+
+These are community projects, **not the Axo hackathon SDK or an official Meta raw EMG SDK**. Before changing pairing or ownership on a checkout band, ask Axo how they configured this device and whether they want you to use their API. You can read the community code and run its offline examples in parallel.
 
 Make a tiny bridge around the real SDK callback. For each *raw* sample, write one JSON line to stdout and flush it:
 
@@ -19,7 +26,7 @@ def on_raw_emg(eight_values, sensor_timestamp=None):
     print(json.dumps(row), flush=True)
 ```
 
-This is an **adapter shape**, not an SDK call. Replace `on_raw_emg` registration with the method from Jason's sample. Preserve raw units; do not rectify or convert to gesture labels in the bridge. If callbacks deliver batches, print one line per sample. If SDK timestamps use another unit, convert them explicitly or omit `t_ns`; the recorder always adds a Mac monotonic arrival timestamp.
+This is an **adapter shape**, not an SDK call. Register it using either Axo's sample or a verified community project's raw stream. Preserve raw units; do not rectify or convert to gesture labels in the bridge. If callbacks deliver batches, print one line per sample. If SDK timestamps use another unit, convert them explicitly or omit `t_ns`; the recorder always adds a Mac monotonic arrival timestamp.
 
 ## 2. Prove capture works
 
@@ -31,7 +38,7 @@ python3 -u your_actual_band_bridge.py | python3 -m neural_reflex capture --outpu
 python3 -m neural_reflex inspect --input data/raw/first.jsonl
 ```
 
-Stop capture with Ctrl-C. The first command is only a template until the SDK arrives. Check that all eight channels vary with rest, wrist movement, and pinch. `inspect` reports **Mac arrival** rate, which may differ from sensor sample rate when callbacks are batched. Use the SDK's actual rate for training. Raw recordings and subject-specific models under `data/` are ignored by Git.
+Stop capture with Ctrl-C. The first command is a template until one raw-stream API is wired in. Check that all eight channels vary with rest, wrist movement, and pinch. `inspect` reports **Mac arrival** rate, which may differ from sensor sample rate when callbacks are batched. Use the source's actual rate for training. Raw recordings and subject-specific models under `data/` are ignored by Git.
 
 ## 3. Run the pipeline without the SDK
 
