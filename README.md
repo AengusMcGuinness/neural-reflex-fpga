@@ -4,6 +4,10 @@
 
 ## The demo
 
+**Offline EMG-to-joint experiments:** [EMG_BENCHMARK.md](EMG_BENCHMARK.md) documents
+the pushed guided recording, causal decoder training, chronological evaluation,
+and limitations of the first session.
+
 An Axo band streams raw eight-channel EMG to a Mac. During a short calibration, a webcam tracks the wearer's hand and supplies paired labels for pinch and hand opening. We train a subject-specific decoder, quantize its weights, and run streaming feature extraction and inference on an Opal Kelly XEM7310. The decoded signal controls a gripper in a simple virtual scene.
 
 The leader arm has a handle, not the follower's grasping claw. Its shoulder-pan and shoulder-lift motors have completed bounded live sweeps under software control. A loopback-only control page provides individual torque switches, continuous target sliders, Fine/Normal/Fast speeds, press-and-hold movement, motor telemetry, and fault recovery for all six joints; see [ARM_SETUP.md](ARM_SETUP.md). This is an experimental use of the leader arm, separate from Hiwonder's documented leader-to-follower workflow.

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neo · EMG to joint benchmark</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fa;
+      color: #172338;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1160px; margin: 0 auto; padding: 28px 18px 58px; }
+    .eyebrow { margin: 0 0 8px; color: #375e9b; font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(2rem, 4vw, 2.7rem); line-height: 1.1; }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 0; font-size: 1rem; }
+    p { line-height: 1.48; }
+    .subtitle { color: #52647c; max-width: 740px; }
+    .topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .badge { border-radius: 999px; padding: 7px 11px; color: #7b4c0e; background: #fff0c8; font-size: .82rem; font-weight: 750; white-space: nowrap; }
+    .card { margin-top: 16px; padding: 20px; border: 1px solid #dce4ee; border-radius: 15px; background: white; box-shadow: 0 3px 12px #1d355914; }
+    .summary-grid, .protocol-grid, .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .stat { border: 1px solid #e3eaf2; border-radius: 11px; padding: 12px 14px; min-width: 0; }
+    .stat span { display: block; color: #65748a; font-size: .82rem; }
+    .stat strong { display: block; margin-top: 4px; font-size: 1.35rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .stat small { display: block; margin-top: 4px; color: #607187; }
+    .muted, .note { color: #607187; font-size: .91rem; }
+    .note { margin-bottom: 0; }
+    .selected-name { margin: 0 0 13px; color: #174b96; font-size: 1.15rem; font-weight: 750; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .88rem; font-variant-numeric: tabular-nums; }
+    caption { text-align: left; color: #52647c; margin-bottom: 9px; font-size: .9rem; }
+    th, td { padding: 10px 9px; border-bottom: 1px solid #e6ebf2; text-align: left; vertical-align: top; }
+    th { color: #51637a; font-weight: 700; background: #f8fafc; }
+    td.metric { white-space: nowrap; }
+    tr.selected { background: #edf4ff; }
+    .model-name { font-weight: 700; }
+    .split-test { font-weight: 700; }
+    .plots { display: grid; gap: 14px; }
+    .plot { padding: 13px; border: 1px solid #e3eaf2; border-radius: 12px; }
+    .plot-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+    .plot-head small { color: #64748b; font-variant-numeric: tabular-nums; }
+    .plot svg { display: block; width: 100%; height: auto; min-height: 170px; margin-top: 7px; }
+    .legend { display: flex; gap: 18px; margin-top: 8px; color: #52647c; font-size: .82rem; }
+    .legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; margin: 0 7px 3px 0; background: var(--swatch); }
+    .legend .actual { --swatch: #52667f; }
+    .legend .predicted { --swatch: #cc5a3e; }
+    .plot-empty { padding: 36px 0; text-align: center; color: #64748b; }
+    .caveats { margin: 8px 0 0; padding-left: 22px; }
+    .caveats li { margin: 7px 0; line-height: 1.45; }
+    .error { border-color: #eeada6; color: #8c251d; background: #fff0ee; }
+    footer { margin: 20px 2px; color: #6b798b; font-size: .83rem; }
+    @media (max-width: 720px) {
+      main { padding: 18px 10px 38px; }
+      .card { padding: 15px; }
+      .summary-grid, .protocol-grid, .metric-grid { grid-template-columns: 1fr; }
+    }
+    @media print {
+      :root { background: white; }
+      main { max-width: none; padding: 0; }
+      .card { break-inside: avoid; box-shadow: none; }
+      .plot { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Replace the placeholder with JSON; escape "<" as \u003c before inserting into this script tag. -->
+  <script id="benchmark-data" type="application/json">__BENCHMARK_DATA__</script>
+  <main>
+    <header class="topline">
+      <div>
+        <p class="eyebrow">Neo · offline analysis</p>
+        <h1 id="report-title">EMG to joint angle benchmark</h1>
+        <p class="subtitle">A held-out comparison of recorded EMG features against measured joint angle labels. This report does not command the arm.</p>
+      </div>
+      <span class="badge">Exploratory result</span>
+    </header>
+    <div id="report-error" class="card error" role="alert" hidden></div>
+
+    <section class="card" aria-labelledby="dataset-heading">
+      <h2 id="dataset-heading">Recorded data</h2>
+      <div id="dataset-stats" class="summary-grid"></div>
+      <p id="dataset-description" class="note"></p>
+    </section>
+
+    <section class="card" aria-labelledby="protocol-heading">
+      <h2 id="protocol-heading">How the data was split</h2>
+      <p id="protocol-name" class="selected-name"></p>
+      <p id="protocol-description" class="muted"></p>
+      <div id="protocol-stats" class="protocol-grid"></div>
+      <p id="window-description" class="note"></p>
+    </section>
+
+    <section class="card" aria-labelledby="selected-heading">
+      <h2 id="selected-heading">Selected model · final test</h2>
+      <p id="selected-name" class="selected-name"></p>
+      <div id="selected-metrics" class="metric-grid"></div>
+      <p class="note">MAE is mean absolute error in degrees (lower is better). R² is goodness of fit (higher is better; a negative value is worse than predicting the test mean).</p>
+    </section>
+
+    <section class="card" aria-labelledby="comparison-heading">
+      <h2 id="comparison-heading">Model comparison</h2>
+      <div class="table-wrap">
+        <table>
+          <caption>Validation and final test scores are shown separately. The final test is for reporting, not model selection.</caption>
+          <thead id="comparison-head"></thead>
+          <tbody id="comparison-body"></tbody>
+        </table>
+      </div>
+      <p class="note">Inference time is an offline measurement when supplied. It is not end-to-end arm control latency.</p>
+    </section>
+
+    <section class="card" aria-labelledby="plots-heading">
+      <h2 id="plots-heading">Recorded target versus prediction</h2>
+      <p id="plot-description" class="muted"></p>
+      <div id="plots" class="plots"></div>
+      <div class="legend"><span class="actual">Recorded target</span><span class="predicted">Model prediction</span></div>
+      <p class="note">Each x position is the supplied recording time. Lines stop at missing samples, time reversals, split changes, and gaps over 100 ms.</p>
+    </section>
+
+    <section class="card" aria-labelledby="caveats-heading">
+      <h2 id="caveats-heading">Limits of this result</h2>
+      <ul id="caveats" class="caveats"></ul>
+    </section>
+
+    <footer>Generated locally from the supplied benchmark data. No raw biometric stream is embedded in this report.</footer>
+  </main>
+  <script>
+  (() => {
+    "use strict";
+    const byId = id => document.getElementById(id);
+    const finite = value => typeof value === "number" && Number.isFinite(value);
+    const number = value => finite(value) ? value.toLocaleString() : "—";
+    const one = value => finite(value) ? value.toFixed(1) : "—";
+    const two = value => finite(value) ? value.toFixed(2) : "—";
+    const duration = seconds => {
+      if (!finite(seconds) || seconds < 0) return "—";
+      const rounded = Math.round(seconds);
+      return Math.floor(rounded / 60) + ":" + String(rounded % 60).padStart(2, "0");
+    };
+    function element(tag, className, textValue) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (textValue !== undefined) node.textContent = String(textValue);
+      return node;
+    }
+    function stat(parent, label, value, detail) {
+      const box = element("div", "stat");
+      box.append(element("span", "", label), element("strong", "", value));
+      if (detail) box.append(element("small", "", detail));
+      parent.append(box);
+    }
+    function cell(row, value, className) {
+      row.append(element("td", className || "", value));
+    }
+    function svgNode(tag, attributes, textValue) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
+      if (textValue !== undefined) node.textContent = String(textValue);
+      return node;
+    }
+    function metricAt(split, key, index) {
+      const values = split && split[key];
+      return Array.isArray(values) && finite(values[index]) ? values[index] : null;
+    }
+    function scoreText(split, index) {
+      const mae = metricAt(split, "mae_deg", index);
+      const r2 = metricAt(split, "r2", index);
+      return (mae === null ? "—" : one(mae) + "°") + " · " +
+        (r2 === null ? "—" : two(r2));
+    }
+    function comparison(data, targets) {
+      const header = element("tr");
+      for (const textValue of ["Model", "Split", ...targets.map(t => t.label || t.name),
+        "Inference"]) header.append(element("th", "", textValue));
+      byId("comparison-head").append(header);
+      const models = Array.isArray(data.models) ? data.models : [];
+      for (const model of models) {
+        for (const splitName of ["validation", "test"]) {
+          const row = element("tr", model.name === data.selected_model ? "selected" : "");
+          cell(row, model.name || "Unnamed model", "model-name");
+          cell(row, splitName === "test" ? "Final test" : "Validation",
+            splitName === "test" ? "split-test" : "");
+          targets.forEach((target, index) => cell(row, scoreText(model[splitName], index), "metric"));
+          cell(row, splitName === "validation" && finite(model.inference_ms)
+            ? one(model.inference_ms) + " ms" : "—");
+          byId("comparison-body").append(row);
+        }
+      }
+      if (!models.length) {
+        const row = element("tr");
+        const empty = element("td", "", "No model results supplied.");
+        empty.colSpan = targets.length + 3;
+        row.append(empty);
+        byId("comparison-body").append(row);
+      }
+    }
+    function plotRows(data) {
+      const all = Array.isArray(data.traces) ? data.traces : [];
+      const labeled = all.filter(row => typeof row.segment === "string");
+      if (!labeled.length) {
+        return { rows: all, label: "Prediction trace; the data does not identify its split." };
+      }
+      for (const [segment, label] of [
+        ["test", "Final test prediction trace"],
+        ["validation", "Validation prediction trace"],
+        ["train", "Training prediction trace"]
+      ]) {
+        const rows = all.filter(row => row.segment === segment);
+        if (rows.length) return { rows, label };
+      }
+      return { rows: all, label: "Prediction trace; split labels were not recognized." };
+    }
+    function makePlot(target, index, rows, splitLabel) {
+      const card = element("div", "plot");
+      const head = element("div", "plot-head");
+      head.append(element("h3", "", target.label || target.name || "Joint " + (index + 1)));
+      const usable = rows.filter(row => finite(row.t) &&
+        ((Array.isArray(row.actual) && finite(row.actual[index])) ||
+         (Array.isArray(row.predicted) && finite(row.predicted[index]))));
+      head.append(element("small", "", usable.length + " plotted timestamps · " + splitLabel));
+      card.append(head);
+      if (!usable.length) {
+        card.append(element("div", "plot-empty", "No prediction trace supplied for this joint."));
+        return card;
+      }
+
+      const width = 900, height = 230, left = 52, right = 16, top = 14, bottom = 33;
+      let minT = Infinity, maxT = -Infinity;
+      let rawMin = Infinity, rawMax = -Infinity;
+      for (const row of usable) {
+        minT = Math.min(minT, row.t);
+        maxT = Math.max(maxT, row.t);
+        for (const key of ["actual", "predicted"]) {
+          const value = Array.isArray(row[key]) ? row[key][index] : null;
+          if (finite(value)) {
+            rawMin = Math.min(rawMin, value);
+            rawMax = Math.max(rawMax, value);
+          }
+        }
+      }
+      const pad = Math.max(1, (rawMax - rawMin) * 0.1);
+      const minY = rawMin - pad, maxY = rawMax + pad;
+      const x = t => left + (t - minT) / Math.max(0.001, maxT - minT) * (width - left - right);
+      const y = value => top + (maxY - value) / (maxY - minY) * (height - top - bottom);
+      const svg = svgNode("svg", {
+        viewBox: "0 0 " + width + " " + height,
+        role: "img",
+        "aria-label": (target.label || target.name || "Joint") +
+          " recorded target and model prediction over recording time"
+      });
+
+      for (let tick = 0; tick <= 4; tick++) {
+        const value = minY + (maxY - minY) * tick / 4;
+        const py = y(value);
+        svg.append(svgNode("line", {x1: left, y1: py, x2: width - right, y2: py,
+          stroke: "#e3e9f0", "stroke-width": 1}));
+        svg.append(svgNode("text", {x: left - 7, y: py + 4, "text-anchor": "end",
+          fill: "#65748a", "font-size": 11}, one(value)));
+      }
+      svg.append(svgNode("line", {x1: left, y1: height - bottom,
+        x2: width - right, y2: height - bottom, stroke: "#8b9bb0", "stroke-width": 1}));
+      svg.append(svgNode("text", {x: left, y: height - 8, fill: "#65748a",
+        "font-size": 11}, one(minT) + " s"));
+      svg.append(svgNode("text", {x: width - right, y: height - 8,
+        "text-anchor": "end", fill: "#65748a", "font-size": 11}, one(maxT) + " s"));
+
+      function trace(key, color) {
+        let points = [];
+        let previousTime = null, previousSegment = null;
+        function flush() {
+          if (!points.length) return;
+          if (points.length === 1) {
+            svg.append(svgNode("circle", {cx: points[0][0], cy: points[0][1],
+              r: 2.4, fill: color}));
+          } else {
+            const d = points.map((point, i) =>
+              (i ? "L" : "M") + point[0].toFixed(2) + " " + point[1].toFixed(2)).join(" ");
+            svg.append(svgNode("path", {d, fill: "none", stroke: color,
+              "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round"}));
+          }
+          points = [];
+        }
+        for (const row of rows) {
+          const value = Array.isArray(row[key]) ? row[key][index] : null;
+          if (!finite(row.t) || !finite(value)) {
+            flush();
+            previousTime = null;
+            previousSegment = null;
+            continue;
+          }
+          if (previousTime !== null &&
+              (row.t <= previousTime || row.t - previousTime > 0.1 ||
+               row.segment !== previousSegment)) flush();
+          points.push([x(row.t), y(value)]);
+          previousTime = row.t;
+          previousSegment = row.segment;
+        }
+        flush();
+      }
+      trace("actual", "#52667f");
+      trace("predicted", "#cc5a3e");
+      card.append(svg);
+      return card;
+    }
+    function render(data) {
+      const targets = Array.isArray(data.targets) ? data.targets.slice(0, 3) : [];
+      if (targets.length !== 3) throw new Error("Expected three labeled joint targets.");
+      byId("report-title").textContent = data.title || "EMG to joint angle benchmark";
+      document.title = "Neo · " + byId("report-title").textContent;
+
+      const dataset = data.dataset || {};
+      stat(byId("dataset-stats"), "Recording length", duration(dataset.duration_s));
+      stat(byId("dataset-stats"), "EMG samples", number(dataset.emg_samples));
+      stat(byId("dataset-stats"), "Pose frames", number(dataset.pose_frames));
+      byId("dataset-description").textContent = dataset.description || "";
+
+      const protocol = data.protocol || {};
+      byId("protocol-name").textContent = protocol.name || "Split protocol not supplied";
+      byId("protocol-description").textContent = protocol.description || "";
+      stat(byId("protocol-stats"), "Training windows", number(protocol.train_windows));
+      stat(byId("protocol-stats"), "Validation windows", number(protocol.validation_windows));
+      stat(byId("protocol-stats"), "Final test windows", number(protocol.test_windows));
+      byId("window-description").textContent =
+        "EMG context: " + (finite(protocol.context_ms) ? number(protocol.context_ms) + " ms" : "—") +
+        " · Window hop: " + (finite(protocol.hop_ms) ? number(protocol.hop_ms) + " ms" : "—") + ".";
+      comparison(data, targets);
+
+      const selected = (Array.isArray(data.models) ? data.models : [])
+        .find(model => model.name === data.selected_model);
+      byId("selected-name").textContent = selected
+        ? selected.name : "No selected model supplied";
+      for (let index = 0; index < targets.length; index++) {
+        const split = selected && selected.test;
+        const mae = metricAt(split, "mae_deg", index);
+        const r2 = metricAt(split, "r2", index);
+        stat(byId("selected-metrics"), targets[index].label || targets[index].name,
+          mae === null ? "—" : one(mae) + "° MAE",
+          "Final test R² " + (r2 === null ? "—" : two(r2)));
+      }
+
+      const trace = plotRows(data);
+      byId("plot-description").textContent = trace.label +
+        ". Lines use the supplied timestamps and do not bridge missing intervals.";
+      targets.forEach((target, index) =>
+        byId("plots").append(makePlot(target, index, trace.rows, trace.label)));
+
+      const notes = [
+        "This single short session does not establish accuracy across days, electrode placements, people, or movement tasks.",
+        "The wrist label is unsigned; it cannot represent rotation direction or full 3D hand orientation."
+      ];
+      if (Array.isArray(data.caveats)) {
+        for (const note of data.caveats) {
+          if (typeof note === "string" && note.trim() &&
+              !notes.some(existing => existing.toLowerCase() === note.trim().toLowerCase()))
+            notes.push(note.trim());
+        }
+      }
+      notes.forEach(note => byId("caveats").append(element("li", "", note)));
+    }
+    try {
+      const raw = byId("benchmark-data").textContent.trim();
+      if (raw === "__BENCHMARK_DATA__") throw new Error("Report data has not been inserted yet.");
+      render(JSON.parse(raw));
+    } catch (error) {
+      const box = byId("report-error");
+      box.hidden = false;
+      box.textContent = "Could not display benchmark data: " + (error.message || String(error));
+      document.querySelectorAll("main section").forEach(section => { section.hidden = true; });
+    }
+  })();
+  </script>
+</body>
+</html>
