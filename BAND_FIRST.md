@@ -13,6 +13,12 @@ Public alternatives exist:
 
 These are community projects, **not the Axo hackathon SDK or an official Meta raw EMG SDK**. Before changing pairing or ownership on a checkout band, ask Axo how they configured this device and whether they want you to use their API. You can read the community code and run its offline examples in parallel.
 
+### This checkout band's Mac compatibility check
+
+On November 6, 2026, the public `callbacked/neural-band-poc` dashboard was installed locally and found a nearby `Meta Band 005M` over Bluetooth. A read-only GATT check returned 100% battery, firmware `7fada0507764+`, and L2CAP PSM `129`. The unmodified client expects PSM `255`. A local patch opened the reported PSM, but the band selected AirShield parameters `27` while the client only implements parameter `3`; the encrypted check stopped before any EMG samples. **No raw stream has been demonstrated on this band with that client.** No unpairing, factory reset, or owner enrollment was performed.
+
+The installed dashboard is at `http://localhost:8765` while its local server runs. Restart it from `.local/neural-band-poc` with `.venv/bin/python -m dashboard.server`. That `.local` copy is ignored by Git and has the PSM discovery patch. Ask Axo for the Mac API that supports this firmware or for their recommended setup before attempting an ownership change.
+
 Make a tiny bridge around the real SDK callback. For each *raw* sample, write one JSON line to stdout and flush it:
 
 ```python
