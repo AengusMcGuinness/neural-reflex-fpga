@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, sans-serif;
+  --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --accent: #111; --warn: #c2410c;
+  --trace-bg: #fafafa; --trace: #111;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #222; --accent: #eee; --warn: #fb923c;
+          --trace-bg: #0a0a0a; --trace: #eee; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px;
+  max-width: 1300px; margin: 0 auto; padding: 40px 16px; }
+@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
+section { min-width: 0; }
+header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.status { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.status.warn { color: var(--warn); }
+
+svg { display: block; width: 100%; height: auto; max-height: 420px; }
+.floor { stroke: var(--line); stroke-width: 2; }
+.links { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.tip { fill: var(--accent); }
+.trail { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: .5; }
+
+.joints { list-style: none; margin: 16px 0; padding: 0; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.joints li { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.joints li span:last-child { color: var(--muted); }
+.joints li.out span:last-child { color: var(--warn); }
+
+button, input { font: inherit; font-size: .85rem; color: var(--text); background: none;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--muted); }
+input { width: 100%; margin-top: 12px; font-family: ui-monospace, Menlo, monospace; }
+
+canvas { display: block; width: 100%; height: 400px; }
+#motion { height: 270px; }
+header.sub { margin-top: 28px; }
+.note { color: var(--muted); font-size: .8rem; margin: 0; }
