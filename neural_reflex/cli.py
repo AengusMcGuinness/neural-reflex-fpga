@@ -280,7 +280,16 @@ def preflight(args):
         raise SystemExit(2)
 
 
+def refuse_overwrite(*paths):
+    """Recorders open files fresh; never silently replace an earlier recording."""
+    for path in paths:
+        if path and Path(path).exists() and Path(path).stat().st_size > 0:
+            raise ValueError(f"{path} already has a recording. Use a new block name "
+                             "(or delete that folder first) so it isn't overwritten.")
+
+
 def record_emg(args):
+    refuse_overwrite(args.output, args.motion_output)
     import io
     import socket
     import urllib.request
@@ -324,6 +333,7 @@ def record_emg(args):
 
 
 def record_arm(args):
+    refuse_overwrite(args.output)
     from .arm_pose import record_arm_pose
     count = record_arm_pose(args.output, args.camera, args.block, args.model, args.side,
                             guided=not args.free)
@@ -331,6 +341,7 @@ def record_arm(args):
 
 
 def record_pose(args):
+    refuse_overwrite(args.output)
     from .pose import record_pose as capture_pose
     count = capture_pose(args.output, args.camera, args.block, args.model)
     print(f"Wrote {count} pose frames to {args.output}", file=sys.stderr)

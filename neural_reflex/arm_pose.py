@@ -167,20 +167,30 @@ def arm_angles(world_landmarks, side="right"):
     }
 
 
-def arm_row(host_time_s, block, side, world_landmarks, visibility, cue=None):
-    """One recorded frame; angles only when the shoulder, elbow and wrist are clearly visible."""
-    row = {"host_time_s": host_time_s, "block": block, "side": side, "cue": cue,
-           "world_landmarks": world_landmarks, "visibility": visibility, "angles": None}
-    if world_landmarks is None:
-        return row
+def side_angles(world_landmarks, visibility, side):
+    """Angles for one arm, or None unless its shoulder, elbow, wrist and the torso are visible."""
     index = SIDES[side]
     needed = [index["shoulder"], index["elbow"], index["wrist"], LEFT_SHOULDER, RIGHT_SHOULDER,
               LEFT_HIP, RIGHT_HIP]
-    if min(visibility[i] for i in needed) >= MIN_VISIBILITY:
-        try:
-            row["angles"] = arm_angles(world_landmarks, side)
-        except ValueError:
-            pass
+    if min(visibility[i] for i in needed) < MIN_VISIBILITY:
+        return None
+    try:
+        return arm_angles(world_landmarks, side)
+    except ValueError:
+        return None
+
+
+def arm_row(host_time_s, block, side, world_landmarks, visibility, cue=None):
+    """One recorded frame. Both arms are stored because a mirrored camera swaps MediaPipe's
+    left/right labels; "angles" is the requested side, "angles_by_side" has both."""
+    row = {"host_time_s": host_time_s, "block": block, "side": side, "cue": cue,
+           "world_landmarks": world_landmarks, "visibility": visibility, "angles": None,
+           "angles_by_side": {"left": None, "right": None}}
+    if world_landmarks is None:
+        return row
+    for name in SIDES:
+        row["angles_by_side"][name] = side_angles(world_landmarks, visibility, name)
+    row["angles"] = row["angles_by_side"][side]
     return row
 
 
@@ -245,16 +255,20 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
                            for i in chain]
                     for a, b in zip(pts, pts[1:]):
                         cv2.line(frame, a, b, (80, 220, 60), 4)
-                if row["angles"]:
-                    a = row["angles"]
+                other = "left" if side == "right" else "right"
+                shown = row["angles"] or row["angles_by_side"][other]
+                if shown:
+                    a = shown
                     pan = "--" if a["shoulder_pan"] is None else f"{a['shoulder_pan']:.0f}"
                     label = (f"lift {a['shoulder_lift']:.0f}  pan {pan}  elbow {a['elbow_flex']:.0f}"
                              f"  wrist {a['wrist_flex']:.0f}")
+                    if not row["angles"]:
+                        label += f"  (seen as {other} arm: mirrored camera? both arms are saved)"
                 else:
-                    label = f"{side} arm not fully visible: show shoulders, hips and the whole arm"
+                    label = "arm not fully visible: show shoulders, hips and the whole arm"
                 cv2.putText(frame, label, (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 220, 60), 2)
                 if guided:
-                    draw_guide(frame, step, streams.update(host_time_s), row["angles"] is not None, block)
+                    draw_guide(frame, step, streams.update(host_time_s), shown is not None, block)
                 cv2.imshow("neural reflex arm pose (q to stop)", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
