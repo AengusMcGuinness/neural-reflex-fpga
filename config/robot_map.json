@@ -1,5 +1,5 @@
 {
-  "description": "How human arm signals become SO-ARM101 joint targets. robot_ticks = home + sign * gain * (human - human_at_home) * 4096/360, clamped to the motor limits minus margin_ticks. 'verified' means the direction was checked on the physical arm. Each signal is low-pass filtered with smooth_s before mapping, because the motors cap at ~32 deg/s.",
+  "description": "How human arm signals become SO-ARM101 joint targets. robot_ticks = home + sign * gain * (human - human_at_home) * 4096/360, clamped to the motor limits minus margin_ticks. 'verified' means the direction was checked on the physical arm. Each signal is low-pass filtered with smooth_s before mapping, because the motors cap at ~32 deg/s. Joints with enabled=false hold their home position.",
   "ticks_per_degree": 11.3778,
   "margin_ticks": 60,
   "speed_caps_ticks_per_s": {
@@ -42,16 +42,19 @@
       "gain": 1.0,
       "verified": false,
       "note": "Undefined while the upper arm is near vertical; the robot holds its last pan there.",
-      "smooth_s": 0.35
+      "smooth_s": 0.35,
+      "enabled": false,
+      "why_disabled": "Off for now: undefined while the arm is near vertical, and the robot protocol keeps the arm in front of you."
     },
     "shoulder_lift": {
       "source": "camera shoulder_lift (0 deg hanging, 180 straight up)",
       "human_at_home": 180,
       "sign": -1,
-      "gain": 0.55,
+      "gain": 1.0,
       "verified": true,
-      "note": "Larger ticks tilt the arm forward/down from straight up (checked on the arm). Gain 0.55 squeezes your 180 deg (hanging to straight up) into the robot's ~100 deg forward range, since it cannot point down through the table.",
-      "smooth_s": 0.25
+      "note": "Larger ticks tilt the arm forward/down from straight up (checked on the arm). Gain 1.0: the robot protocol stays between straight up (180) and shoulder height (90), which the robot reaches 1:1. A hanging arm is clamped at the robot's forward limit rather than pointing through its table.",
+      "smooth_s": 0.25,
+      "enabled": true
     },
     "elbow_flex": {
       "source": "camera elbow_flex (0 deg straight)",
@@ -60,7 +63,8 @@
       "gain": 1.0,
       "verified": false,
       "note": "Home is straight, 217 ticks above the minimum, so bending must increase ticks.",
-      "smooth_s": 0.2
+      "smooth_s": 0.2,
+      "enabled": true
     },
     "wrist_flex": {
       "source": "camera wrist_flex (unsigned bend)",
@@ -69,7 +73,9 @@
       "gain": 1.0,
       "verified": false,
       "note": "The camera gives bend size but not up vs down, so this only bends one way.",
-      "smooth_s": 0.25
+      "smooth_s": 0.25,
+      "enabled": false,
+      "why_disabled": "Off for now: the camera measures bend size but not direction, and EMG barely tracks it (|r| 0.06)."
     },
     "wrist_roll": {
       "source": "band roll relative to its median during the 'rest' step",
@@ -78,7 +84,9 @@
       "gain": 0.5,
       "verified": false,
       "smooth_s": 0.4,
-      "note": "Experimental: band roll also picks up whole-arm tilt, so it is scaled down by half."
+      "note": "Experimental: band roll also picks up whole-arm tilt, so it is scaled down by half.",
+      "enabled": false,
+      "why_disabled": "Off for now: band roll also picks up whole-arm tilt, and its direction is unchecked."
     },
     "gripper": {
       "source": "EMG clench strength: 0 at the 'rest' step level, 1 at the 'sync' clench peak",
@@ -87,7 +95,8 @@
       "gain": 500,
       "verified": false,
       "note": "gain is ticks at full clench. The leader arm has a handle, not a claw.",
-      "smooth_s": 0.5
+      "smooth_s": 0.5,
+      "enabled": true
     }
   }
 }

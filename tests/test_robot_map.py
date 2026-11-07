@@ -36,10 +36,21 @@ class RobotMapTests(unittest.TestCase):
             self.assertAlmostEqual(targets[joint][-1], HOME[joint], delta=1, msg=joint)
             self.assertFalse(clamped[joint].any())
 
-    def test_hanging_arm_fits_the_robot_without_clipping(self):
+    def test_robot_protocol_poses_fit_and_hanging_arm_clamps(self):
+        # Shoulder height forward (90) with the elbow at 90: the robot protocol's lowest pose.
+        targets, clamped = translate(signals(shoulder_lift=90.0, elbow_flex=90.0), self.config, HOME)
+        self.assertFalse(clamped["shoulder_lift"].any() or clamped["elbow_flex"].any())
+        self.assertAlmostEqual(targets["shoulder_lift"][-1] - HOME["shoulder_lift"], 90 * 4096 / 360, delta=2)
+        # A hanging arm would point the robot through its table: it stops at the forward limit.
         targets, clamped = translate(signals(shoulder_lift=0.0), self.config, HOME)
-        self.assertFalse(clamped["shoulder_lift"].any())
-        self.assertGreater(targets["shoulder_lift"][-1], HOME["shoulder_lift"])   # tilts forward
+        self.assertTrue(clamped["shoulder_lift"].all())
+        self.assertEqual(targets["shoulder_lift"][-1], self.config["limits"]["shoulder_lift"][1] - self.config["margin_ticks"])
+
+    def test_disabled_joints_hold_home(self):
+        targets, _ = translate(signals(shoulder_pan=60.0, wrist_flex=40.0, wrist_roll=50.0), self.config, HOME)
+        for joint in ("shoulder_pan", "wrist_flex", "wrist_roll"):
+            self.assertFalse(self.config["joints"][joint]["enabled"])
+            self.assertTrue((targets[joint] == HOME[joint]).all(), joint)
 
     def test_targets_never_leave_limits(self):
         targets, clamped = translate(signals(shoulder_pan=170.0, elbow_flex=400.0, wrist_roll=-500.0),
