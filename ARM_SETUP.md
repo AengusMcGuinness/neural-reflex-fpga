@@ -7,6 +7,11 @@ The leader's servos expose position and torque registers, so this repo includes
 an **experimental, bounded joint jog** to move its tip. Cartesian tip targeting
 and grasping have not been verified on this hardware.
 
+**Live status (November 7, 2026):** The black arm was detected on this Mac,
+all six motors answered the read-only probe, and a bounded shoulder-pan sweep
+moved its encoder from 2244 to 2278 ticks and back to 2246. The final probe
+showed torque off on all six motors. The servo supply read 12.1–12.3 V.
+
 ## Hardware connection
 
 Clamp the base to a stable table. Connect its controller's USB-C data port to
@@ -50,6 +55,12 @@ shoulder-pan movement while supporting the arm and watching the tip:
 ./scripts/leader_arm jog --port /dev/cu.YOUR_ARM_PORT --enable-motion
 ```
 
+On the tested Mac, the current command is:
+
+```bash
+./scripts/leader_arm jog --port /dev/cu.usbmodem5CE51146561 --enable-motion
+```
+
 At the prompt:
 
 ```text
@@ -58,6 +69,13 @@ shoulder_pan 5
 shoulder_pan -5
 stop
 ```
+
+For a more visible but still bounded movement, enter `shoulder_pan 10` four
+times, then `shoulder_pan -10` four times, followed by `stop`. This commands
+about 3.5 degrees in each direction from the starting pose. Each command is
+one small step; do not send the entire excursion as a single number. The arm
+port on the tested Mac was `/dev/cu.usbmodem5CE51146561`, but USB port names
+can change after reconnection, so run `ports` if it disappears.
 
 `arm` sets each goal to its measured position before enabling torque. Each
 command moves one joint by at most 10 raw ticks, and no joint can travel more

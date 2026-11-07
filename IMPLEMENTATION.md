@@ -4,7 +4,7 @@ The Axo/Meta band is paired through [Kinesis](KINESIS.md), and its raw eight-cha
 
 ## Demo contract
 
-The first physical demo is intentionally narrow: the leader arm moves its handle tip between two bounded poses under a decoded EMG command. It has no grasping claw, so the grasping task remains virtual. Before connecting EMG, verify a read-only USB probe and a small manual motor jog. Cartesian tip targets require a measured kinematic model and live validation.
+The first physical demo is intentionally narrow: the leader arm moves its handle tip between two bounded poses under a decoded EMG command. It has no grasping claw, so the grasping task remains virtual. The read-only USB probe and small manual motor jog were verified on November 7, 2026. Cartesian tip targets require a measured kinematic model and live validation. The EMG stream is currently disconnected while manual arm control is brought up.
 
 The FPGA must be in the live signal path. The Mac receives raw EMG, timestamps and forwards samples over FrontPanel, and consumes the FPGA's decoded output. It must not silently substitute the CPU prediction during the judged run. Keep a visible switch between CPU and FPGA modes for an honest A/B comparison.
 

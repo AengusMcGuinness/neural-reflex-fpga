@@ -6,7 +6,7 @@
 
 An Axo band streams raw eight-channel EMG to a Mac. During a short calibration, a webcam tracks the wearer's hand and supplies paired labels for pinch and hand opening. We train a subject-specific decoder, quantize its weights, and run streaming feature extraction and inference on an Opal Kelly XEM7310. The decoded signal controls a gripper in a simple virtual scene.
 
-The leader arm has a handle, not the follower's grasping claw. We can test whether its servos can move the handle tip under software control, then map decoded EMG to bounded motion. This is an experimental use of the leader arm, separate from Hiwonder's documented leader-to-follower workflow.
+The leader arm has a handle, not the follower's grasping claw. Its shoulder motor has now completed a bounded live sweep under software control, moving the handle tip. This is an experimental use of the leader arm, separate from Hiwonder's documented leader-to-follower workflow.
 
 ## Why this needs the FPGA
 
@@ -30,11 +30,11 @@ webcam -> hand landmarks -> paired training labels -> quantized per-user weights
 
 The supplied photo shows an XEM7310 module with a barrel power jack and USB-C connector. The owner reports that this board powers up and runs code directly from the laptop over USB-C. FrontPanel enumeration on November 6 identified it as **XEM7310-A75**; it opened successfully, but `IsFrontPanelEnabled()` was false before loading a new bitstream. An external supply is not a prerequisite for the owner's working setup. [Opal Kelly's standard power documentation](https://docs.opalkelly.com/xem7310/powering-the-xem7310/) describes a different default configuration, so do not infer this board's internal power configuration from the photo.
 
-The first Neo bitstream was built for `xc7a75tfgg484-1` using Vivado 2022.2 on `cs1410vnc`. The existing macOS FrontPanel binding programmed the board and verified PipeIn packet readback. Axo Kinesis has paired the loaner band and streamed raw EMG on this Mac. The single black Hiwonder leader arm has not yet appeared as a USB serial device on this Mac.
+The first Neo bitstream was built for `xc7a75tfgg484-1` using Vivado 2022.2 on `cs1410vnc`. The existing macOS FrontPanel binding programmed the board and verified PipeIn packet readback. Axo Kinesis has paired the loaner band and streamed raw EMG on this Mac. On November 7, the single black Hiwonder leader arm appeared as a USB serial device, reported all six motors at 12.1–12.3 V, and completed a 40-tick shoulder-pan sweep. All motors were torque off after the test. The EMG stream is currently disconnected; the present hardware task is manual arm motion.
 
 ## Scope rule
 
-The one-person virtual gripper remains the verified software target. Moving the single leader arm's handle tip is a physical extension after a live USB probe and small motion test. Recorded or synthetic EMG can validate the FPGA pipeline, but they are not a substitute for the live neural-interface demo.
+The one-person virtual gripper remains the verified software target for EMG development. Manual movement of the single leader arm's handle tip has passed a live USB probe and small motion test. Cartesian positioning and EMG control are future work.
 
 ## References
 
@@ -44,7 +44,7 @@ The one-person virtual gripper remains the verified software target. Moving the 
 - [FrontPanel SDK release notes](https://docs.opalkelly.com/fpsdk/release-notes/)
 - [MediaPipe Hand Landmarker live stream API](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HandLandmarker)
 
-The repo includes a raw-EMG recorder, Kinesis batch normalizer, USB packetizer, CPU decoder baseline, a Vivado-built FPGA packet receiver, and an experimental leader-arm serial probe and bounded jog. The physical XEM7310 accepted 252 batches from a two-second live capture with correct word count, sequence, timestamp, and checksum. Webcam labels, FPGA feature extraction and inference, EMG-to-arm control, and full latency benchmarks remain to be implemented.
+The repo includes a raw-EMG recorder, Kinesis batch normalizer, USB packetizer, CPU decoder baseline, a Vivado-built FPGA packet receiver, and a live-tested leader-arm serial probe and bounded jog. The physical XEM7310 accepted 252 batches from a two-second live capture with correct word count, sequence, timestamp, and checksum. Webcam labels, FPGA feature extraction and inference, EMG-to-arm control, and full latency benchmarks remain to be implemented.
 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the concrete band-to-FPGA-to-arm build sequence and proposed FrontPanel endpoint map.
 
