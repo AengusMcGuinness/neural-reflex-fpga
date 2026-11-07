@@ -1,10 +1,10 @@
 # Implementation plan
 
-The Axo/Meta band is paired through [Kinesis](KINESIS.md), and its raw eight-channel feed has been read, packetized, and passed through the XEM7310 packet receiver. The Medra arm and its event-specific API are still unconfirmed. FPGA feature extraction and inference remain to be built.
+The Axo/Meta band is paired through [Kinesis](KINESIS.md), and its raw eight-channel feed has been read, packetized, and passed through the XEM7310 packet receiver. The available physical arm is one black Hiwonder SO-ARM101 leader arm. [ARM_SETUP.md](ARM_SETUP.md) describes its experimental output path. FPGA feature extraction and inference remain to be built.
 
 ## Demo contract
 
-The first physical demo is intentionally narrow: the arm follows a pre-approved path between two fixed poses, while the wearer's decoded forearm EMG controls the gripper. The participant calibrates, closes the gripper on an object, carries it through the fixed path, and releases it. A virtual gripper is the software test target. Continuous arm jogging and a second user are extensions after this loop is reliable.
+The first physical demo is intentionally narrow: the leader arm moves its handle tip between two bounded poses under a decoded EMG command. It has no grasping claw, so the grasping task remains virtual. Before connecting EMG, verify a read-only USB probe and a small manual motor jog. Cartesian tip targets require a measured kinematic model and live validation.
 
 The FPGA must be in the live signal path. The Mac receives raw EMG, timestamps and forwards samples over FrontPanel, and consumes the FPGA's decoded output. It must not silently substitute the CPU prediction during the judged run. Keep a visible switch between CPU and FPGA modes for an honest A/B comparison.
 
@@ -15,10 +15,10 @@ Kinesis SSE -> timestamped 8 x uint16 ADC counts -> acquisition queue
 camera -> timestamped hand landmarks -> calibration labels
 acquisition queue -> FrontPanel PipeIn -> FPGA window/features/decoder
 FPGA result/status -> FrontPanel WireOut -> host controller
-host controller -> virtual gripper / Medra adapter
+host controller -> virtual gripper / experimental leader-arm adapter
 ```
 
-Kinesis reports 2,048 samples/second/channel, eight unsigned ADC channels, and 16 samples per batch. Its band timestamp and Mac host receipt time use different clocks; preserve both plus batch sequence and connection ID. The Medra adapter must expose only supported operations: get state, move to an approved pose, set gripper target (or open/close), and stop. Query its supported command rate and whether a hardware emergency stop is available. Do not assume servo-level access.
+Kinesis reports 2,048 samples/second/channel, eight unsigned ADC channels, and 16 samples per batch. Its band timestamp and Mac host receipt time use different clocks; preserve both plus batch sequence and connection ID. The leader-arm adapter reads six serial bus motor positions and can send bounded raw position goals. It must stop on stale input, serial errors, or a joint that fails to track a small target. Do not treat its handle as a gripper.
 
 ## Calibration and model
 
@@ -47,7 +47,7 @@ The host packet contract is now fixed in [FPGA_FIRST.md](FPGA_FIRST.md) and `neu
 
 `DISARMED -> CALIBRATING -> READY -> ARMED -> FAULT`
 
-The host may send arm commands only in `ARMED`. Transition to `FAULT` and request a stop when samples or FPGA results go stale, the sequence stops advancing, the decoded value is invalid, the network connection drops, or Medra reports a fault. Keep the gripper within its approved range and limit command rate and slew rate. The physical arm's own safety controls and operator emergency stop remain authoritative. An AI planner, if added, may suggest target poses but stays outside the real-time motor loop.
+The host may send arm commands only in `ARMED`. Transition to `FAULT` and disable motor torque when samples or FPGA results go stale, the sequence stops advancing, the decoded value is invalid, the serial connection drops, or a motor fails to track. Bound every joint within its configured motor limits and a smaller session-specific travel range. Limit command rate and step size. Keep the power plug accessible for a physical stop. An AI planner, if added, may suggest target poses but stays outside the real-time motor loop.
 
 ## Integration order
 
@@ -55,8 +55,8 @@ The host may send arm commands only in `ARMED`. Transition to `FAULT` and reques
 2. **Done:** connect the Kinesis band and save a short local raw recording. The three-second test captured 6,048 samples, with batch sequence, band timestamp, host receipt time, and connection ID preserved. Do not commit raw biometric recordings to GitHub.
 3. Show webcam landmarks and paired labels. Train a CPU decoder and control the virtual gripper.
 4. **PipeIn packet check done:** implement fixed-point features, then model weights and result WireOut. Check each stage against the integer reference on the same recording.
-5. Integrate the Medra adapter in simulation or dry-run mode. Agree on allowed poses, command rate, gripper limits, and stop behavior with the Medra team.
-6. Run the one-person physical demo with an operator at the stop control. Then consider continuous arm movement and a second FPGA/band.
+5. **Software probe and bounded jog implemented:** verify the Hiwonder leader arm over live USB, starting with read-only motor state, then a small single-joint move. No live arm test has happened yet.
+6. Measure the handle-tip geometry and validated joint limits before adding Cartesian tip targets or EMG-triggered motion. Run the one-person physical demo with an operator at the power stop.
 
 ## Measurements to show judges
 
