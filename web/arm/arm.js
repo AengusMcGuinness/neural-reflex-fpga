@@ -212,7 +212,7 @@ function render(state) {
       joint.torque_enabled === true && (joint.operating_mode == null || joint.operating_mode === 0);
     ui.position.textContent = `${state.stale ? 'Last read' : 'Measured'} ${joint.position} ticks`;
     ui.toggle.textContent = joint.torque_enabled == null ? 'Torque unknown'
-      : joint.torque_enabled ? 'Torque on' : 'Torque off';
+      : joint.torque_enabled ? 'Turn motor off' : 'Enable motor';
     ui.toggle.setAttribute('aria-checked', String(joint.torque_enabled === true));
     ui.toggle.disabled = busy || Boolean(state.fault) || state.torque_unknown ||
       typeof joint.torque_enabled !== 'boolean';
@@ -232,7 +232,9 @@ function render(state) {
     if (bounds) {
       ui.range.min = ui.number.min = String(bounds.lower);
       ui.range.max = ui.number.max = String(bounds.upper);
-      ui.targetRange.textContent = `Safe target ${bounds.lower}–${bounds.upper} ticks · slider sends on release`;
+      ui.targetRange.textContent = joint.torque_enabled === true
+        ? `Target range ${bounds.lower}–${bounds.upper} ticks · slider sends on release`
+        : `Click Enable motor to unlock this slider · target range ${bounds.lower}–${bounds.upper} ticks`;
       if (!ui.dirty) {
         const value = clamp(joint.position, bounds.lower, bounds.upper);
         ui.range.value = ui.number.value = String(value);
