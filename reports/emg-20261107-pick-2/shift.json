@@ -1,0 +1,272 @@
+{
+  "description": "Post hoc frozen-model input-shift diagnosis; no model or scaler updated.",
+  "limitations": "Task, posture, and electrode-placement differences are confounded. Fifty-millisecond camera label offset remains assumed; this is not a causal correction.",
+  "model": {
+    "kind": "ridge",
+    "sha256": "6f335acb51d14bab8edd2dc2c76fc9d304c23dde33445e4d200ff1a3f011e88a",
+    "targets": [
+      "shoulder_lift",
+      "elbow_flex",
+      "wrist_flex"
+    ]
+  },
+  "latest_frame_rms": "expm1(feature 16:24) in the newest of 31 causal feature frames",
+  "z_definition": "All paired windows, including ADC near-rail windows: (feature - original training mean) / original training scale before the model's +/-6 clamp. The ridge then clips each z to +/-6 over its seven selected history frames.",
+  "recordings": [
+    {
+      "name": "Training \u00b7 reach",
+      "windows": 3842,
+      "unclipped_windows": 2899,
+      "rms_p10_by_channel": [
+        23.913165702620034,
+        18.879980509768536,
+        18.712486318868613,
+        17.404925418738934,
+        17.204118325769787,
+        22.440508361026485,
+        71.49569281596102,
+        33.99171443248621
+      ],
+      "rms_median_by_channel": [
+        71.22489069235698,
+        39.275527718112464,
+        40.52201670488839,
+        32.329177960392045,
+        29.81397167670892,
+        41.46174101419116,
+        123.02952938379565,
+        49.322873028424425
+      ],
+      "rms_p90_by_channel": [
+        1692.4169488133768,
+        104.22225783760533,
+        170.54878067563993,
+        76.62211887464164,
+        64.3226923188296,
+        97.70087226482843,
+        246.03109301070634,
+        85.99672143642029
+      ],
+      "median_unclamped_train_z_log_rms_by_channel": [
+        -0.3199048848192043,
+        -0.1313467558753153,
+        -0.22895275344937976,
+        -0.126962610459877,
+        -0.13408360330122854,
+        -0.14593594080877953,
+        -0.06334935824631105,
+        -0.10930765890258687
+      ],
+      "proportion_abs_z_gt6_model_frames_all_features": 0.0,
+      "proportion_windows_any_abs_z_gt6_model_frames": 0.0,
+      "proportion_abs_z_gt6_model_frames_log_rms_by_channel": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "frozen_prediction_mean_deg": [
+        40.50486115108419,
+        40.47850075432956,
+        12.279449405842508
+      ],
+      "measured_mean_deg": [
+        40.43973588344744,
+        40.478500754329616,
+        12.279449405842565
+      ],
+      "frozen_prediction_fraction_at_zero": [
+        0.01691827173347215,
+        0.0,
+        0.0
+      ],
+      "frozen_prediction_fraction_at_180": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "input_sha256": {
+        "emg.jsonl": "b61951666fcdf1eb405efbf91dc7e8dbc10c162bed70a660286efa36cd3b6a34",
+        "arm.jsonl": "b39a86cc0d87895f2e05dc0465dcf54ba0613719c26b7458c1bac88df59f931f"
+      }
+    },
+    {
+      "name": "pick-1",
+      "windows": 5974,
+      "unclipped_windows": 5717,
+      "rms_p10_by_channel": [
+        35.410745417553194,
+        30.767800041964684,
+        30.319781413492073,
+        27.224122074339977,
+        27.401492030161748,
+        44.67412309189033,
+        126.21590751992665,
+        38.19170396941014
+      ],
+      "rms_median_by_channel": [
+        61.865023801632034,
+        42.24286559576723,
+        41.34131204448716,
+        48.50841221618854,
+        68.22632309340202,
+        88.66127798226697,
+        226.62697075765433,
+        53.53085932148372
+      ],
+      "rms_p90_by_channel": [
+        122.14044382437379,
+        55.92887994395915,
+        54.30552178232094,
+        65.23333469069551,
+        98.52281122080358,
+        121.01697209663435,
+        281.9672342851109,
+        70.86538426491055
+      ],
+      "median_unclamped_train_z_log_rms_by_channel": [
+        -0.4096988303911754,
+        -0.022878076794473297,
+        -0.2105377651248722,
+        0.5524856830271849,
+        1.465910244818731,
+        1.1709967651596875,
+        1.231442502571248,
+        0.10609026854147921
+      ],
+      "proportion_abs_z_gt6_model_frames_all_features": 0.0,
+      "proportion_windows_any_abs_z_gt6_model_frames": 0.0,
+      "proportion_abs_z_gt6_model_frames_log_rms_by_channel": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "frozen_prediction_mean_deg": [
+        29.943300903960274,
+        33.15854663152605,
+        9.498494932480133
+      ],
+      "measured_mean_deg": [
+        22.187208744796017,
+        76.80302209300146,
+        24.31156486623012
+      ],
+      "frozen_prediction_fraction_at_zero": [
+        0.008369601606963508,
+        0.0,
+        0.0
+      ],
+      "frozen_prediction_fraction_at_180": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "input_sha256": {
+        "emg.jsonl": "32b6acbf2c947f70796287902b40a7e2a7c8ee2cc52078ff76aaf5ca92e31b61",
+        "arm.jsonl": "7899ad88bd36212b957cd0668006358908c43db3f0242411a4af1bd05b5ef2ec"
+      },
+      "acquisition": {
+        "segment_count": 21,
+        "connection_epoch_count": 2,
+        "sequence_missing_batches": 149,
+        "clock_mode": "unit"
+      }
+    },
+    {
+      "name": "pick-2",
+      "windows": 6614,
+      "unclipped_windows": 6614,
+      "rms_p10_by_channel": [
+        13.300146907433,
+        13.948765853460861,
+        13.160990166889675,
+        13.775810282642977,
+        17.885107504306774,
+        29.058239622650344,
+        17.99921793025235,
+        17.798221431137065
+      ],
+      "rms_median_by_channel": [
+        28.628153752872777,
+        26.590634573831935,
+        19.44093687449157,
+        18.423777537572864,
+        24.011110884731018,
+        43.95705833037301,
+        60.44267653545921,
+        124.99195387392162
+      ],
+      "rms_p90_by_channel": [
+        95.71279554310975,
+        56.8845151501231,
+        34.14766049714088,
+        31.308279602993775,
+        36.86550788448816,
+        73.28922749083586,
+        105.6881249186918,
+        231.63364619201167
+      ],
+      "median_unclamped_train_z_log_rms_by_channel": [
+        -0.8963801880396272,
+        -0.7085195174553007,
+        -0.8968523406115008,
+        -1.0540522541642123,
+        -0.5465251894689168,
+        -0.045321990349695834,
+        -1.561205346903659,
+        2.3522845647884654
+      ],
+      "proportion_abs_z_gt6_model_frames_all_features": 0.00044224372543090414,
+      "proportion_windows_any_abs_z_gt6_model_frames": 0.025249470819473843,
+      "proportion_abs_z_gt6_model_frames_log_rms_by_channel": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.006954944058058663
+      ],
+      "frozen_prediction_mean_deg": [
+        37.808070131482935,
+        10.383489202245755,
+        4.770951529004051
+      ],
+      "measured_mean_deg": [
+        22.61739666543609,
+        83.35955328133292,
+        16.724562315464535
+      ],
+      "frozen_prediction_fraction_at_zero": [
+        0.008013305110371939,
+        0.09903235560931357,
+        0.0
+      ],
+      "frozen_prediction_fraction_at_180": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "input_sha256": {
+        "emg.jsonl": "77dbdff2507d47f8abad8571a4c201125e5900ff8da2bbdf2cee2595856b8587",
+        "arm.jsonl": "6fd2cc5e440b166137e40815aaafdd9ee015e396a8cf60a7617bd6cfc5903880"
+      },
+      "acquisition": {
+        "segment_count": 1,
+        "connection_epoch_count": 1,
+        "sequence_missing_batches": 0,
+        "clock_mode": "unit"
+      }
+    }
+  ]
+}

@@ -21,6 +21,10 @@ tests the original decoder without retraining, compares correlations across both
 recordings, audits prompted versus measured labels, and reports descriptive
 block-bootstrap uncertainty and timing sensitivity.
 
+The latest [pick-2 analysis](reports/emg-20261107-pick-2/README.md) repeats this
+frozen test on a cleaner continuous recording. It also compares EMG input
+distributions against the original training interval to diagnose failed transfer.
+
 Python 3.11 or newer, NumPy, SciPy and PyTorch are needed for training. Matplotlib
 is needed for the correlation plots. The offline commands do not require paired
 EMG hardware, a camera, or the robot.

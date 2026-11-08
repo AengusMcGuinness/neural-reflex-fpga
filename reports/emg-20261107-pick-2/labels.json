@@ -1,0 +1,404 @@
+{
+  "method": {
+    "comparison": "target and followed from the same camera-frame record; no lag optimization",
+    "timestamp": "host monotonic timestamp recorded after camera frame read",
+    "target_semantics": "synthetic on-screen instruction, not observed human pose",
+    "followed_semantics": "camera side-view signed shoulder lift; elbow uses shoulder-to-elbow against elbow-to-index/pinky midpoint",
+    "benchmark_semantics": "original frozen model label_values: unsigned 3D torso-relative shoulder lift, elbow uses elbow-to-wrist, wrist uses wrist-to-hand bend",
+    "hand_position_units": "forward/up divided by observed arm reach for followed; target uses model arm-length units; approximate dimensionless comparison",
+    "gap_break_seconds": 0.15
+  },
+  "side": "right",
+  "camera_frames": 4088,
+  "duration_s": 136.99,
+  "camera_frame_rate_hz": 29.834,
+  "camera_gaps_over_150ms": 2,
+  "landmark_frames": 3992,
+  "followed_frames": 3969,
+  "followed_fraction": 0.9709,
+  "benchmark_label_validity": {
+    "shoulder_lift": {
+      "valid_frames": 3972,
+      "fraction": 0.9716
+    },
+    "elbow_flex": {
+      "valid_frames": 3969,
+      "fraction": 0.9709
+    },
+    "wrist_flex": {
+      "valid_frames": 3968,
+      "fraction": 0.9706
+    }
+  },
+  "target_distributions": {
+    "shoulder_lift": {
+      "p05": -27.595,
+      "median": -8.238,
+      "p95": 29.912
+    },
+    "elbow_flex": {
+      "p05": 46.712,
+      "median": 92.206,
+      "p95": 110.741
+    },
+    "forward": {
+      "p05": 0.3,
+      "median": 0.45,
+      "p95": 0.75
+    },
+    "up": {
+      "p05": -0.53,
+      "median": -0.53,
+      "p95": -0.311
+    }
+  },
+  "followed_distributions": {
+    "shoulder_lift": {
+      "p05": -27.801,
+      "median": -2.871,
+      "p95": 25.537
+    },
+    "elbow_flex": {
+      "p05": 58.32,
+      "median": 90.111,
+      "p95": 100.629
+    },
+    "forward": {
+      "p05": 0.275,
+      "median": 0.486,
+      "p95": 0.739
+    },
+    "up": {
+      "p05": -0.65,
+      "median": -0.498,
+      "p95": -0.238
+    }
+  },
+  "comparison": {
+    "shoulder_lift": {
+      "matched_frames": 3969,
+      "mae": 11.755,
+      "bias_measured_minus_target": -0.886,
+      "pearson_r": 0.6709,
+      "error_percentiles": {
+        "p05": -23.81,
+        "median": -0.543,
+        "p95": 23.394
+      },
+      "target_percentiles_matched": {
+        "p05": -27.595,
+        "median": -6.939,
+        "p95": 29.912
+      },
+      "measured_percentiles_matched": {
+        "p05": -27.801,
+        "median": -2.871,
+        "p95": 25.537
+      }
+    },
+    "elbow_flex": {
+      "matched_frames": 3969,
+      "mae": 13.894,
+      "bias_measured_minus_target": -0.424,
+      "pearson_r": 0.4679,
+      "error_percentiles": {
+        "p05": -24.372,
+        "median": -1.687,
+        "p95": 31.964
+      },
+      "target_percentiles_matched": {
+        "p05": 46.712,
+        "median": 92.119,
+        "p95": 110.765
+      },
+      "measured_percentiles_matched": {
+        "p05": 58.32,
+        "median": 90.111,
+        "p95": 100.629
+      }
+    },
+    "forward": {
+      "matched_frames": 3969,
+      "mae": 0.095,
+      "bias_measured_minus_target": -0.023,
+      "pearson_r": 0.6784,
+      "error_percentiles": {
+        "p05": -0.233,
+        "median": -0.024,
+        "p95": 0.162
+      },
+      "target_percentiles_matched": {
+        "p05": 0.3,
+        "median": 0.45,
+        "p95": 0.75
+      },
+      "measured_percentiles_matched": {
+        "p05": 0.275,
+        "median": 0.486,
+        "p95": 0.739
+      }
+    },
+    "up": {
+      "matched_frames": 3969,
+      "mae": 0.088,
+      "bias_measured_minus_target": -0.012,
+      "pearson_r": 0.5027,
+      "error_percentiles": {
+        "p05": -0.193,
+        "median": -0.007,
+        "p95": 0.174
+      },
+      "target_percentiles_matched": {
+        "p05": -0.53,
+        "median": -0.529,
+        "p95": -0.311
+      },
+      "measured_percentiles_matched": {
+        "p05": -0.65,
+        "median": -0.498,
+        "p95": -0.238
+      }
+    }
+  },
+  "rounds": {
+    "1": {
+      "frames": 1798,
+      "followed_frames": 1798,
+      "followed_fraction": 1.0,
+      "comparison": {
+        "shoulder_lift": {
+          "matched_frames": 1798,
+          "mae": 10.584,
+          "bias_measured_minus_target": -2.361,
+          "pearson_r": 0.6647,
+          "error_percentiles": {
+            "p05": -24.464,
+            "median": -1.519,
+            "p95": 19.387
+          },
+          "target_percentiles_matched": {
+            "p05": -27.143,
+            "median": 4.133,
+            "p95": 29.912
+          },
+          "measured_percentiles_matched": {
+            "p05": -18.7,
+            "median": -1.818,
+            "p95": 24.334
+          }
+        },
+        "elbow_flex": {
+          "matched_frames": 1798,
+          "mae": 12.074,
+          "bias_measured_minus_target": 3.358,
+          "pearson_r": 0.6963,
+          "error_percentiles": {
+            "p05": -17.694,
+            "median": 3.038,
+            "p95": 30.956
+          },
+          "target_percentiles_matched": {
+            "p05": 46.712,
+            "median": 92.117,
+            "p95": 110.786
+          },
+          "measured_percentiles_matched": {
+            "p05": 61.456,
+            "median": 92.874,
+            "p95": 101.427
+          }
+        },
+        "forward": {
+          "matched_frames": 1798,
+          "mae": 0.084,
+          "bias_measured_minus_target": -0.019,
+          "pearson_r": 0.688,
+          "error_percentiles": {
+            "p05": -0.162,
+            "median": -0.028,
+            "p95": 0.158
+          },
+          "target_percentiles_matched": {
+            "p05": 0.304,
+            "median": 0.556,
+            "p95": 0.75
+          },
+          "measured_percentiles_matched": {
+            "p05": 0.333,
+            "median": 0.501,
+            "p95": 0.734
+          }
+        },
+        "up": {
+          "matched_frames": 1798,
+          "mae": 0.078,
+          "bias_measured_minus_target": 0.016,
+          "pearson_r": 0.333,
+          "error_percentiles": {
+            "p05": -0.174,
+            "median": 0.031,
+            "p95": 0.17
+          },
+          "target_percentiles_matched": {
+            "p05": -0.53,
+            "median": -0.523,
+            "p95": -0.308
+          },
+          "measured_percentiles_matched": {
+            "p05": -0.579,
+            "median": -0.471,
+            "p95": -0.318
+          }
+        }
+      }
+    },
+    "2": {
+      "frames": 1797,
+      "followed_frames": 1797,
+      "followed_fraction": 1.0,
+      "comparison": {
+        "shoulder_lift": {
+          "matched_frames": 1797,
+          "mae": 13.165,
+          "bias_measured_minus_target": -1.783,
+          "pearson_r": 0.6279,
+          "error_percentiles": {
+            "p05": -24.296,
+            "median": -3.862,
+            "p95": 25.657
+          },
+          "target_percentiles_matched": {
+            "p05": -27.134,
+            "median": 3.812,
+            "p95": 29.912
+          },
+          "measured_percentiles_matched": {
+            "p05": -28.654,
+            "median": -1.468,
+            "p95": 34.236
+          }
+        },
+        "elbow_flex": {
+          "matched_frames": 1797,
+          "mae": 13.493,
+          "bias_measured_minus_target": 0.817,
+          "pearson_r": 0.5417,
+          "error_percentiles": {
+            "p05": -22.56,
+            "median": -2.409,
+            "p95": 35.174
+          },
+          "target_percentiles_matched": {
+            "p05": 46.712,
+            "median": 92.117,
+            "p95": 110.786
+          },
+          "measured_percentiles_matched": {
+            "p05": 62.087,
+            "median": 88.932,
+            "p95": 99.993
+          }
+        },
+        "forward": {
+          "matched_frames": 1797,
+          "mae": 0.116,
+          "bias_measured_minus_target": -0.035,
+          "pearson_r": 0.5381,
+          "error_percentiles": {
+            "p05": -0.253,
+            "median": -0.037,
+            "p95": 0.172
+          },
+          "target_percentiles_matched": {
+            "p05": 0.304,
+            "median": 0.555,
+            "p95": 0.75
+          },
+          "measured_percentiles_matched": {
+            "p05": 0.294,
+            "median": 0.493,
+            "p95": 0.77
+          }
+        },
+        "up": {
+          "matched_frames": 1797,
+          "mae": 0.086,
+          "bias_measured_minus_target": -0.012,
+          "pearson_r": 0.594,
+          "error_percentiles": {
+            "p05": -0.171,
+            "median": -0.017,
+            "p95": 0.194
+          },
+          "target_percentiles_matched": {
+            "p05": -0.53,
+            "median": -0.523,
+            "p95": -0.309
+          },
+          "measured_percentiles_matched": {
+            "p05": -0.619,
+            "median": -0.528,
+            "p95": -0.177
+          }
+        }
+      }
+    }
+  },
+  "phases": {
+    "ready": {
+      "frames": 133,
+      "followed_frames": 14
+    },
+    "sync": {
+      "frames": 180,
+      "followed_frames": 180
+    },
+    "rest": {
+      "frames": 90,
+      "followed_frames": 90
+    },
+    "reach": {
+      "frames": 719,
+      "followed_frames": 719
+    },
+    "lower": {
+      "frames": 359,
+      "followed_frames": 359
+    },
+    "grip": {
+      "frames": 359,
+      "followed_frames": 359
+    },
+    "hold": {
+      "frames": 180,
+      "followed_frames": 180
+    },
+    "lift": {
+      "frames": 539,
+      "followed_frames": 539
+    },
+    "place": {
+      "frames": 540,
+      "followed_frames": 540
+    },
+    "open": {
+      "frames": 179,
+      "followed_frames": 179
+    },
+    "return": {
+      "frames": 720,
+      "followed_frames": 720
+    },
+    "rest_end": {
+      "frames": 90,
+      "followed_frames": 90
+    }
+  },
+  "limitations": [
+    "Target angles are commands to imitate, not measured limb positions.",
+    "No camera exposure latency or human response lag was measured.",
+    "Signed side-view shoulder angles cannot be compared directly with the frozen model's unsigned torso-relative angles.",
+    "The measured elbow uses the hand midpoint while the frozen model uses the wrist; their magnitudes differ.",
+    "Camera gaps and occlusion reduce observed follow-through coverage."
+  ]
+}
