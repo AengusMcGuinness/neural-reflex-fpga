@@ -15,7 +15,7 @@ module llama_fp4_top #(
     parameter real CLKFBOUT_MULT = 10.0,  // 100 MHz * 10 = 1000 MHz VCO
     parameter real CLKOUT_DIVIDE = 8.0,   // 1000 MHz / 8 = 125 MHz
     parameter int  CLK_HZ = 125_000_000,
-    parameter int  CTRL_AW = 11           // width of the kernel's s_axi_control address (C_S_AXI_CONTROL_ADDR_WIDTH)
+    parameter int  CTRL_AW = 14           // width of the kernel's s_axi_control address (C_S_AXI_CONTROL_ADDR_WIDTH)
 ) (
     input  wire         clk_100mhz,
     input  wire  [3:0]  btn,

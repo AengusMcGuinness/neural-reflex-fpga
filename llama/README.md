@@ -130,7 +130,7 @@ On the server, after `source /software/xilinx-tools-2022/Vitis_HLS/2022.2/settin
 3. Bitstream. The script refuses to write one unless timing is met:
    ```bash
    source /software/xilinx-tools-2022/Vivado/2022.2/settings64.sh
-   FP4_CTRL_AW=11 vivado -mode batch -source src/build_fp4.tcl -tclargs <fp4_hls/sol1/impl/ip> out
+   FP4_CTRL_AW=14 vivado -mode batch -source src/build_fp4.tcl -tclargs <fp4_hls/sol1/impl/ip> out
    ```
 
 ## The fp32 DDR3 design

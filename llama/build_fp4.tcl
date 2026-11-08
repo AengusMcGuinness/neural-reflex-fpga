@@ -18,7 +18,7 @@ synth_ip [get_ips llama_fp4_0]
 read_verilog -sv [list $src/rtl/llama_fp4_top.sv $src/rtl/uart_axi_bridge.sv]
 read_xdc $src/constraints/llama_fp4_top.xdc
 
-set ctrl_aw [expr {[info exists ::env(FP4_CTRL_AW)] ? $::env(FP4_CTRL_AW) : 11}]
+set ctrl_aw [expr {[info exists ::env(FP4_CTRL_AW)] ? $::env(FP4_CTRL_AW) : 14}]
 synth_design -top llama_fp4_top -part $part -generic CTRL_AW=$ctrl_aw
 write_checkpoint -force $out/post_synth.dcp
 report_utilization -file $out/utilization_synth.rpt
