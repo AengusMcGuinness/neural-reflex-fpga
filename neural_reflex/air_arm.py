@@ -199,7 +199,26 @@ class AirArm:
                 f"roll {d['wrist_roll']:+4.0f}° gripper {100 * s['grip']:3.0f}%   ")
 
 
-def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50):
+class TickLog:
+    """JSON lines at ~10 Hz: forearm, grip, targets, measured positions, faults (for reading live)."""
+
+    def __init__(self, path):
+        self.file = open(path, "a", buffering=1, encoding="utf-8") if path else None
+        self.next = 0.0
+
+    def write(self, now, air, targets=None, positions=None, event=None, force=False):
+        if not self.file or (now < self.next and not force and event is None):
+            return
+        self.next = now + 0.1
+        s = air.state or {}
+        row = {"t": round(now, 3), "event": event,
+               **{k: round(s[k], 2) for k in ("elevation", "swing", "twist", "grip") if k in s},
+               "deg": {k: round(v, 1) for k, v in s.get("deg", {}).items()} or None,
+               "targets": targets, "positions": positions}
+        self.file.write(json.dumps({k: v for k, v in row.items() if v is not None}) + "\n")
+
+
+def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50, log=None):
     """Drive the arm from the band until Ctrl+C or `duration`. Holds the last targets on stale data."""
     snap = controller.status()
     if snap.get("fault"):
@@ -227,7 +246,9 @@ def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50):
             snap = controller.torque(j, True, controller.motion_epoch)
             if snap.get("fault"):
                 raise RuntimeError(snap["fault"])
-        last, t0, checked = None, time.monotonic(), 0.0
+        log = log or TickLog(None)
+        log.write(time.monotonic(), air, event="motors on, following", force=True)
+        last, t0, checked, positions = None, time.monotonic(), 0.0, None
         while duration is None or time.monotonic() - t0 < duration:
             now = time.monotonic()
             targets = air.tick(now)
@@ -241,10 +262,13 @@ def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50):
                     controller.target(j, t, controller.motion_epoch)
             else:
                 controller.heartbeat(controller.motion_epoch)
+            log.write(now, air, targets=last, positions=positions)
             if now - checked > 0.5:
                 checked = now
                 snap = controller.status()
+                positions = {j["name"]: j["position"] for j in snap["joints"]}
                 if snap.get("fault"):
+                    log.write(now, air, event=f"fault: {snap['fault']}")
                     raise RuntimeError(snap["fault"])
                 if show:
                     sys.stdout.write(air.line())
@@ -259,7 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url", required=True, help="Kinesis stream URL")
     parser.add_argument("--port", help="arm USB serial port (needed with --execute)")
     parser.add_argument("--execute", action="store_true", help="drive the arm (default: dry run)")
+    parser.add_argument("--log", help="append JSON lines (forearm, grip, targets, positions, events) to this file")
     args = parser.parse_args(argv)
+    log = TickLog(args.log)
     cfg = json.loads(TELEOP_CONFIG.read_text())
     robot_map = json.loads(ROBOT_MAP.read_text())
     home = json.loads(HOME_FILE.read_text())["positions"]
@@ -277,6 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         meter = calibrate_fist(stream)
     except (ValueError, RuntimeError) as error:
         print(f"\nCalibration failed: {error}")
+        log.write(time.monotonic(), type("S", (), {"state": None})(), event=f"calibration failed: {error}")
         return 1
     print(f"fist raises EMG {meter.ratio:.1f}x on ch{meter.channel + 1}.")
     print("\nHold your forearm LEVEL, pointing where you want the robot's middle to be. Starting in 2 s...")
@@ -285,8 +312,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.execute:
         print("DRY RUN: raise/lower, swing and twist your forearm, make a fist. Ctrl+C to quit.")
         try:
+            log.write(time.monotonic(), air, event=f"dry run started (fist {meter.ratio:.1f}x ch{meter.channel + 1})", force=True)
             while True:
                 air.tick(time.monotonic())
+                log.write(time.monotonic(), air)
                 sys.stdout.write(air.line())
                 sys.stdout.flush()
                 time.sleep(0.05)
@@ -304,11 +333,14 @@ def main(argv: list[str] | None = None) -> int:
     controller = ArmController(make_bus(args.port), timeout=15.0)
     code = 0
     try:
-        follow_band(controller, air)
+        log.write(time.monotonic(), air, event=f"execute started (fist {meter.ratio:.1f}x ch{meter.channel + 1})", force=True)
+        follow_band(controller, air, log=log)
     except KeyboardInterrupt:
         print("\nStopped: holding the arm where it is.")
+        log.write(time.monotonic(), air, event="stopped by Ctrl+C")
     except RuntimeError as error:
         print(f"\nStopped: {error}")
+        log.write(time.monotonic(), air, event=f"stopped: {error}")
         code = 1
     finally:
         try:
