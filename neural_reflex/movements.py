@@ -218,7 +218,49 @@ def run_prompts(steps, clock=time.monotonic, sleep=time.sleep, out=sys.stdout):
     return segments
 
 
-def dataset(stream: BandStream, segments, neutral):
+class FrozenStream:
+    """A finished recording as sorted arrays, so windows are found by binary search, not a scan."""
+
+    def __init__(self, emg, gyro, orient):
+        self.et, self.ev = np.array([t for t, _ in emg]), [v for _, v in emg]
+        self.gt, self.gv = np.array([t for t, _ in gyro]), np.array([v for _, v in gyro]).reshape(-1, 3)
+        self.ot, self.oq = np.array([t for t, _ in orient]), [q for _, q in orient]
+
+    @classmethod
+    def from_stream(cls, stream: "BandStream"):
+        with stream.lock:
+            return cls(list(stream.emg), list(stream.gyro), list(stream.orient))
+
+    @classmethod
+    def from_events(cls, path: Path):
+        emg, gyro, orient = [], [], []
+        for line in path.open(encoding="utf-8"):
+            e = json.loads(line)
+            if e["type"] == "emg":
+                emg.append((e["host_time_s"], np.asarray(e["values"], dtype=float)))
+            elif e["type"] == "gyro":
+                gyro.append((e["host_time_s"], np.asarray(e["values"], dtype=float) * 0.07))
+            elif e["type"] == "orientation":
+                orient.append((e["host_time_s"], e["values"]))
+        for items in (emg, gyro, orient):
+            items.sort(key=lambda item: item[0])
+        return cls(emg, gyro, orient)
+
+    def window(self, t: float, seconds: float = WINDOW_S):
+        a, b = np.searchsorted(self.et, [t - seconds, t], side="right")
+        c, d = np.searchsorted(self.gt, [t - seconds, t], side="right")
+        o = np.searchsorted(self.ot, t, side="right") - 1
+        emg = np.concatenate(self.ev[a:b]) if b > a else None
+        gyro = self.gv[c:d] if d > c else None
+        q = self.oq[o] if o >= 0 and t - self.ot[o] <= 0.2 else None
+        return emg, gyro, q
+
+    def orientations(self, t0: float, t1: float):
+        a, b = np.searchsorted(self.ot, [t0, t1])
+        return self.oq[a:b]
+
+
+def dataset(stream, segments, neutral):
     x, y, groups = [], [], []
     for s in segments:
         if s["kind"] == "ready":          # previewing the next movement: neither rest nor the movement
@@ -236,8 +278,8 @@ def dataset(stream: BandStream, segments, neutral):
 
 def teach(args, cfg) -> int:
     out = Path(args.session) / "movements" / args.name
-    if (out / "model.json").exists():
-        raise SystemExit(f"{out} already has a model; choose another --name")
+    if (out / "model.json").exists() or (out / "events.jsonl").exists():
+        raise SystemExit(f"{out} already has a recording; choose another --name (or use retrain)")
     out.mkdir(parents=True, exist_ok=True)
     stream = BandStream(args.url, keep_s=None, record_to=out / "events.jsonl")
     time.sleep(1.0)
@@ -249,8 +291,14 @@ def teach(args, cfg) -> int:
     print(f"\nTEACHING {len(cfg['movements'])} movements x {cfg['repetitions']} repetitions ({total / 60:.1f} min).")
     print("Do each movement as the prompt says and HOLD it until the next prompt. No keys to press.\n")
     segments = run_prompts(steps)
+    (out / "segments.json").write_text(json.dumps(segments, indent=1) + "\n")   # saved before training
     time.sleep(0.3)
     stream.close()
+    print("training (a few seconds)...")
+    return train_and_save(FrozenStream.from_stream(stream), segments, cfg, out)
+
+
+def train_and_save(stream, segments, cfg, out: Path) -> int:
     first = segments[0]
     neutral = mean_rotation(stream.orientations(first["start"] + REACTION_S, first["end"]))
     classes = ["rest"] + [m["name"] for m in cfg["movements"]]
@@ -260,7 +308,6 @@ def teach(args, cfg) -> int:
         return 1
     accuracy, recall, confusion = cross_validate(x, y, groups, classes)
     model = Classifier.fit(x, y, classes)
-    (out / "segments.json").write_text(json.dumps(segments, indent=1) + "\n")
     (out / "model.json").write_text(json.dumps({"classifier": model.to_json(), "window_s": WINDOW_S,
                                                 "config": cfg}) + "\n")
     (out / "report.json").write_text(json.dumps({"accuracy": accuracy, "recall": recall,
@@ -454,6 +501,49 @@ def live(args, cfg) -> int:
     return code
 
 
+def segments_from_schedule(cfg, start: float):
+    """The prompt timeline as it ran, if it started at `start` (the order is fixed by the seed)."""
+    segments, t = [], start
+    for kind, name, _, seconds, rep in schedule(cfg):
+        segments.append({"kind": kind, "name": name, "rep": rep, "start": t, "end": t + seconds})
+        t += seconds
+    return segments
+
+
+def find_start(stream: FrozenStream, cfg, around: float, span: float = 3.0, step: float = 0.1):
+    """Start time that makes the movements most recognisable (cross-validated accuracy)."""
+    classes = ["rest"] + [m["name"] for m in cfg["movements"]]
+    best = None
+    for offset in np.arange(-span, span + 1e-9, step):
+        segs = segments_from_schedule(cfg, around + offset)
+        neutral = mean_rotation(stream.orientations(segs[0]["start"] + REACTION_S, segs[0]["end"]) or [[1, 0, 0, 0]])
+        x, y, g = dataset(stream, segs, neutral)
+        if len(set(y)) < len(classes):
+            continue
+        acc = cross_validate(x, y, g, classes)[0]
+        if best is None or acc > best[0]:
+            best = (acc, around + offset)
+    return best
+
+
+def retrain(args, cfg) -> int:
+    out = Path(args.folder)
+    stream = FrozenStream.from_events(out / "events.jsonl")
+    seg_file = out / "segments.json"
+    if seg_file.exists():
+        segments = json.loads(seg_file.read_text())
+        print("using the saved prompt timeline")
+    else:
+        # Prompts began about 1 s after the stream started (the tool waits for band data first).
+        guess = float(stream.et[0]) + 1.0
+        print("no saved prompt timeline: rebuilding it from the fixed prompt order and lining it up with the data...")
+        acc, start = find_start(stream, cfg, guess)
+        print(f"  prompts started {start - stream.et[0]:.1f} s after recording began (best match {100 * acc:.0f}%)")
+        segments = segments_from_schedule(cfg, start)
+        seg_file.write_text(json.dumps(segments, indent=1) + "\n")
+    return train_and_save(stream, segments, cfg, out)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -466,9 +556,11 @@ def main(argv: list[str] | None = None) -> int:
     l.add_argument("--model", required=True, help="model.json from teach")
     l.add_argument("--port")
     l.add_argument("--execute", action="store_true")
+    r = sub.add_parser("retrain", help="train again from a saved teaching folder (events.jsonl)")
+    r.add_argument("folder", help="e.g. data/sessions/ID/movements/set-1")
     args = parser.parse_args(argv)
     cfg = json.loads(CONFIG_FILE.read_text())
-    return teach(args, cfg) if args.command == "teach" else live(args, cfg)
+    return {"teach": teach, "live": live, "retrain": retrain}[args.command](args, cfg)
 
 
 if __name__ == "__main__":
