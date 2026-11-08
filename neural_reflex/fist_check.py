@@ -80,6 +80,24 @@ def evaluate(records: list[dict], phases: list[tuple[str, float, float]]) -> dic
             "connections": len(connections), "problems": problems}
 
 
+def band_hand(url: str, timeout: float = 3.0) -> str | None:
+    """Which wrist Kinesis says the band is on ('left'/'right'), from the stream's hello event."""
+    from .kinesis import _consume_sse_line
+    request = urllib.request.Request(url, headers={"Accept": "text/event-stream"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            event, data = None, []
+            for raw in response:
+                event, data, payload = _consume_sse_line(raw.decode("utf-8"), event, data)
+                if payload and payload.get("type") in ("hello", "status"):
+                    status = payload.get("payload", {})
+                    return (status.get("status") or status).get("hand")
+    except (OSError, socket.timeout, ValueError):
+        return None
+    return None
+
+
 def collect(url: str, records: list, stop: threading.Event, errors: list, motion: list | None = None):
     request = urllib.request.Request(url, headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -98,8 +116,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", required=True, help="Kinesis stream URL")
     parser.add_argument("--output", help="where to save fist_check.json (e.g. the block folder)")
+    parser.add_argument("--side", choices=("left", "right"),
+                        help="the arm this recording tracks; fails if Kinesis says the band is on the other wrist")
     args = parser.parse_args(argv)
     url = assert_local_stream_url(args.url)
+    hand = band_hand(url)
     records, errors, stop, motion = [], [], threading.Event(), []
     reader = threading.Thread(target=collect, args=(url, records, stop, errors, motion), daemon=True)
     reader.start()
@@ -128,13 +149,20 @@ def main(argv: list[str] | None = None) -> int:
                                   "off and on in Kinesis (or reconnect the band), then copy the new stream URL")
         result["ok"] = False
     result["motion_events"] = len(motion)
+    result["band_hand"] = hand
+    if args.side and hand and hand != args.side:
+        result["problems"].append(f"Kinesis says the band is on your {hand.upper()} wrist, but this recording tracks "
+                                  f"your {args.side.upper()} arm. Move the band, or record with '{hand}' as the side "
+                                  f"(and set the wrist in Kinesis if it is wrong)")
+        result["ok"] = False
     print()
     if "best_ratio" in result:
         print(f"Fist response: {result['best_ratio']:.1f}x on the strongest channel "
               f"(ch{result['best_channels'][0]}; next ch{result['best_channels'][1]}, ch{result['best_channels'][2]})  "
               f"-> {result['verdict'].upper()}")
         print("  per channel: " + "  ".join(f"ch{c + 1} {r:.1f}x" for c, r in enumerate(result["ratio_by_channel"])))
-        print(f"  stream {result['batches_per_s']:.0f} batches/s, band connections: {result['connections']}")
+        print(f"  stream {result['batches_per_s']:.0f} batches/s, band connections: {result['connections']}, "
+              f"Kinesis says band on: {hand or 'unknown'} wrist")
     for problem in result["problems"]:
         print(f"  ✗ {problem}")
     if args.output:

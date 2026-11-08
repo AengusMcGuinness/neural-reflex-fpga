@@ -30,13 +30,34 @@ from .robot_map import follow, load_map
 REPO = Path(__file__).resolve().parent.parent
 VIEWER = REPO / "web" / "pick_sim" / "viewer.html"
 
-# --- Geometry (metres) from the SO-101 URDF joint origins ----------------------------------
-SHOULDER_HEIGHT = 0.117    # base plate to the shoulder-lift axis (0.0624 + 0.0542)
-SHOULDER_FORWARD = 0.030   # shoulder-lift axis in front of the base-rotation axis
-UPPER_ARM = 0.116          # shoulder -> elbow (0.1126 along, 0.028 offset)
-FOREARM = 0.135            # elbow -> wrist
-HAND = 0.159               # wrist -> gripper tip (0.061 + 0.098)
+# --- Geometry (metres): config/robot_geometry.json, defaulting to the SO-101 URDF -----------
+GEOMETRY_FILE = REPO / "config" / "robot_geometry.json"
+_URDF = {"shoulder_height_m": 0.117,    # base plate to the shoulder-lift axis (0.0624 + 0.0542)
+         "shoulder_forward_m": 0.030,   # shoulder-lift axis in front of the base-rotation axis
+         "upper_arm_m": 0.116,          # shoulder -> elbow (0.1126 along, 0.028 offset)
+         "forearm_m": 0.135,            # elbow -> wrist
+         "hand_m": 0.159}               # wrist -> gripper tip (0.061 + 0.098)
+
+
+def load_geometry(path: Path = GEOMETRY_FILE) -> dict:
+    geometry = dict(_URDF)
+    if path.exists():
+        data = json.loads(path.read_text())
+        geometry.update({k: float(data[k]) for k in _URDF if k in data})
+    for key, value in geometry.items():
+        if not 0.0 <= value <= 0.5:
+            raise ValueError(f"{path}: {key} = {value} m is not a plausible arm dimension")
+    return geometry
+
+
+_G = load_geometry()
+SHOULDER_HEIGHT = _G["shoulder_height_m"]
+SHOULDER_FORWARD = _G["shoulder_forward_m"]
+UPPER_ARM = _G["upper_arm_m"]
+FOREARM = _G["forearm_m"]
+HAND = _G["hand_m"]
 LINKS = (UPPER_ARM, FOREARM, HAND)
+GEOMETRY = {"shoulder_height": SHOULDER_HEIGHT, "shoulder_forward": SHOULDER_FORWARD, "links": list(LINKS)}
 
 # --- Masses (kg) and centre of mass as a fraction along each link, from the URDF inertials --
 MASSES = (

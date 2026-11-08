@@ -27,7 +27,7 @@ fi
 # Band check first: relax / fist prompts; stops here if EMG wouldn't give usable grip data.
 # Set SKIP_BAND_CHECK=1 to skip it.
 if [ "${SKIP_BAND_CHECK:-0}" != "1" ]; then
-  if ! "$python" -m neural_reflex.fist_check --url "$url" --output "$dir"; then
+  if ! "$python" -m neural_reflex.fist_check --url "$url" --output "$dir" --side "$side"; then
     echo "Band check failed: nothing was recorded. Fix it and run the same command again." >&2
     exit 1
   fi

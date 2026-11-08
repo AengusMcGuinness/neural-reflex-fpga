@@ -85,7 +85,13 @@ def band_windows(block: Path):
     if len({r.get("band_connection_id") for r in records}) > 1:
         print(f"band reconnected during this block: using its longest connection, "
               f"{times[-1] - times[0]:.0f} of {records[-1]['host_time_s'] - records[0]['host_time_s']:.0f} s")
-    orient_t, orient_m, gyro_t, gyro_v = load_motion(read_jsonl(block / "motion.jsonl"))
+    motion_file = block / "motion.jsonl"
+    try:
+        orient_t, orient_m, gyro_t, gyro_v = load_motion(read_jsonl(motion_file)) if motion_file.exists() else (None,) * 4
+    except ValueError:
+        orient_t = orient_m = gyro_t = gyro_v = None
+    if orient_t is None:
+        print("no band orientation/gyro in this block: fitting EMG only")
     window = int(SAMPLE_RATE_HZ * WINDOW_MS / 1000)
     hop = int(SAMPLE_RATE_HZ * HOP_MS / 1000)
     lags = [int(ms // HOP_MS) for ms in LAGS_MS]
@@ -96,15 +102,16 @@ def band_windows(block: Path):
         if position < max(lags) or any(rows[position - lag] is None for lag in lags):
             continue
         t_end = float(times[end])
-        o = int(np.clip(np.searchsorted(orient_t, t_end), 1, len(orient_t) - 1))
-        in_window = (gyro_t > t_end - WINDOW_MS / 1000) & (gyro_t <= t_end)
-        if abs(orient_t[o] - t_end) > 0.1 or not in_window.any():
-            continue
-        g = gyro_v[in_window]
+        if orient_t is not None:
+            o = int(np.clip(np.searchsorted(orient_t, t_end), 1, len(orient_t) - 1))
+            in_window = (gyro_t > t_end - WINDOW_MS / 1000) & (gyro_t <= t_end)
+            if abs(orient_t[o] - t_end) > 0.1 or not in_window.any():
+                continue
+            g = gyro_v[in_window]
+            motion_x.append(np.concatenate([orient_m[o], g.mean(axis=0), np.abs(g).mean(axis=0)]))
         t_out.append(t_end)
         emg_x.append(np.concatenate([rows[position - lag] for lag in lags]))
-        motion_x.append(np.concatenate([orient_m[o], g.mean(axis=0), np.abs(g).mean(axis=0)]))
-    return np.array(t_out), np.array(emg_x), np.array(motion_x)
+    return np.array(t_out), np.array(emg_x), (np.array(motion_x) if orient_t is not None else None)
 
 
 def label_windows(track, times, delay):
@@ -221,17 +228,20 @@ def main(argv: list[str] | None = None) -> int:
         seen = ~np.isnan(track["followed"]["forward"])
         for i, k in enumerate(("forward", "up")):
             y[:, i] = np.interp(times, track["time"][seen], track["followed"][k][seen])
-    times, emg_x, motion_x, y = times[keep], emg_x[keep], motion_x[keep], y[keep]
+    times, emg_x, y = times[keep], emg_x[keep], y[keep]
+    motion_x = motion_x[keep] if motion_x is not None else None
     steps = [s for s, k in zip(steps, keep) if k]
     rounds = [r for r, k in zip(rounds, keep) if k]
     spots = [s for s, k in zip(spots, keep) if k]
-    inputs = {"EMG only": emg_x, "band motion only": motion_x, "EMG + band motion": np.hstack([emg_x, motion_x])}
+    inputs = {"EMG only": emg_x}
+    if motion_x is not None:
+        inputs.update({"band motion only": motion_x, "EMG + band motion": np.hstack([emg_x, motion_x])})
     results = {}
     for name, x in inputs.items():
         predicted, tested, reg = fit_rounds(x, y, rounds)
         results[name] = {"predicted": predicted, "tested": tested, "regularization": reg,
                          "scores": scores(y, predicted, tested)}
-    n_test = int(results["EMG + band motion"]["tested"].sum())
+    n_test = int(next(iter(results.values()))["tested"].sum())
     print(f"\n{len(y)} windows labelled by the {'on-screen target' if args.labels == 'target' else 'camera'}; "
           f"each round predicted by a model trained on the other ({n_test} held out)")
     print(f"{'held-out':20}{'hand fwd R²':>12}{'hand up R²':>12}{'grip R²':>9}{'fist/open':>11}{'shoulder err':>14}{'elbow err':>11}")
@@ -245,10 +255,10 @@ def main(argv: list[str] | None = None) -> int:
     # Drive the simulated robot from the best model's held-out predictions.
     from .dashboard import load_home
     from .hand_map import MAP_FILE, robot_targets, solve
-    from .pick_sim import (FORWARD_TICK_SIGN, PLANAR, TICKS_PER_DEGREE, forward_kinematics, gravity_torque,
+    from .pick_sim import (FORWARD_TICK_SIGN, GEOMETRY, PLANAR, TICKS_PER_DEGREE, forward_kinematics, gravity_torque,
                            joint_limits)
     from .robot_map import follow as follower, load_map
-    best = results["EMG + band motion"]
+    best = results.get("EMG + band motion", results["EMG only"])
     tested = best["tested"]
     pred = best["predicted"][tested].copy()
     pred[:, 0], pred[:, 1] = smooth(pred[:, 0], 0.25), smooth(pred[:, 1], 0.25)
@@ -294,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
                "torque": [round(gravity_torque(a)["shoulder_lift"], 2) for a in angles[::step]],
                "human": pred[::step, :2].round(3).tolist(), "human_true": true[::step, :2].round(3).tolist(),
                "human_calibration": human, "robot": cfg["robot"], "limits": {j: list(v) for j, v in limits.items()},
-               "geometry": {"shoulder_height": 0.117, "shoulder_forward": 0.030, "links": [0.116, 0.135, 0.159]}}
+               "geometry": GEOMETRY}
     page = VIEWER.read_text(encoding="utf-8").replace(
         "__HAND_DATA__", json.dumps(preview, separators=(",", ":")).replace("</", "<\\/"))
     (block / "guided_preview.html").write_text(page, encoding="utf-8")

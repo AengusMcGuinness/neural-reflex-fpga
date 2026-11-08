@@ -25,7 +25,7 @@ from .arm_pose import LEFT_HIP, LEFT_SHOULDER, RIGHT_HIP, RIGHT_SHOULDER, SIDES
 from .armfit import arm_tracks, band_arm, load_motion
 from .dashboard import load_home
 from .handfit import read_jsonl
-from .pick_sim import (FORWARD_TICK_SIGN, GRIPPER_CLOSE_TICKS, PLANAR, TICKS_PER_DEGREE, check_pose,
+from .pick_sim import (FORWARD_TICK_SIGN, GEOMETRY, GRIPPER_CLOSE_TICKS, PLANAR, TICKS_PER_DEGREE, check_pose,
                        forward_kinematics, gravity_torque, inverse_kinematics, joint_limits)
 from .robot_map import DT, follow, human_signals, load_map, lowpass
 
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
                "torque": torque[::step].round(2).tolist(),
                "human": np.c_[sampled["forward"], sampled["up"]][::step].round(3).tolist(),
                "human_calibration": human, "robot": config["robot"], "limits": {j: list(v) for j, v in limits.items()},
-               "geometry": {"shoulder_height": 0.117, "shoulder_forward": 0.030, "links": [0.116, 0.135, 0.159]},
+               "geometry": GEOMETRY,
                "source": source, "block": block.name}
     page = VIEWER.read_text(encoding="utf-8").replace(
         "__HAND_DATA__", json.dumps(preview, separators=(",", ":")).replace("</", "<\\/"))
