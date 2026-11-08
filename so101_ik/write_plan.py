@@ -82,14 +82,24 @@ _LIMITS_HI = np.array([hi for _, hi in JOINT_LIMITS])
 
 
 # ---------- Cartesian path -----------------------------------------------------------------------
-def layout_strokes(strokes, distance_m, plane_z_m, hover_m, mirror=False):
-    """Strokes (page x right, y up, metres) -> list of (xyz, pen_down) waypoints in base_link."""
+def layout_strokes(strokes, distance_m, plane_z_m, hover_m, mirror=False, lateral_m=0.0,
+                   yaw_deg=0.0, plane_slope=(0.0, 0.0)):
+    """Strokes (page x right, y up, metres) -> list of (xyz, pen_down) waypoints in base_link.
+    The text is centred at (distance_m, lateral_m) on the plane; +lateral is the robot's left (+y).
+    yaw_deg rotates the text line about the vertical (0 = along the robot's y axis).  plane_slope
+    (dz/dx, dz/dy) lets the surface be tilted in the model's frame: z = plane_z_m + slope . (xy - centre),
+    which absorbs a calibration bias measured with pen touches across the writing area."""
     xmin, ymin, xmax, ymax = strokes_bbox(strokes)
     cx, cy = (xmin + xmax) / 2, (ymin + ymax) / 2
     sign = 1.0 if mirror else -1.0
+    c, s = math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg))
 
     def to_base(p):
-        return np.array([distance_m + (p[1] - cy), sign * (p[0] - cx), plane_z_m])
+        dx, dy = (p[1] - cy), sign * (p[0] - cx)
+        x = distance_m + c * dx - s * dy
+        y = lateral_m + s * dx + c * dy
+        z = plane_z_m + plane_slope[0] * (x - distance_m) + plane_slope[1] * (y - lateral_m)
+        return np.array([x, y, z])
 
     up = np.array([0.0, 0.0, hover_m])
     path = []
@@ -319,7 +329,9 @@ def build_plan(args, log=print):
     if not strokes:
         raise ValueError(f"no strokes for text {args.text!r}")
     bbox = strokes_bbox(strokes)
-    path = layout_strokes(strokes, args.distance_m, args.plane_z_m, args.hover_m, args.mirror)
+    path = layout_strokes(strokes, args.distance_m, args.plane_z_m, args.hover_m, args.mirror,
+                          getattr(args, "lateral_m", 0.0) or 0.0, getattr(args, "yaw_deg", 0.0) or 0.0,
+                          tuple(getattr(args, "plane_slope", None) or (0.0, 0.0)))
     elbow_stop = ElbowStop(getattr(args, "elbow_max_deg", None))
     # Solve inside the range the calibrated servos can reach, not just the URDF's.
     limits = calibrated_limits(elbow_stop.cal, elbow_stop.max_deg)
@@ -390,6 +402,11 @@ def parse_args(argv=None):
                    help="height of the writing surface in the URDF base frame (bottom of the base = 0 = the table)")
     p.add_argument("--text_height_m", type=float, default=DEFAULT_HEIGHT_M, help="cap height")
     p.add_argument("--hover_m", type=float, default=0.01, help="pen lift between strokes")
+    p.add_argument("--lateral_m", type=float, default=0.0,
+                   help="sideways offset of the text centre in base_link y (+ = robot's left)")
+    p.add_argument("--yaw_deg", type=float, default=0.0, help="rotate the text line about vertical")
+    p.add_argument("--plane_slope", type=float, nargs=2, default=None, metavar=("DZDX", "DZDY"),
+                   help="tilt of the writing plane in the model frame, from pen touches")
     p.add_argument("--pen_tilt_deg", type=float, default=0.0,
                    help="lean the pen back toward the base by this angle from vertical (0 = vertical pen); "
                         "30-45 keeps the arm folded so the small shoulder servo can hold it")
