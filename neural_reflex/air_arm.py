@@ -283,8 +283,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url", required=True, help="Kinesis stream URL")
     parser.add_argument("--port", help="arm USB serial port (needed with --execute)")
     parser.add_argument("--execute", action="store_true", help="drive the arm (default: dry run)")
-    parser.add_argument("--log", help="append JSON lines (forearm, grip, targets, positions, events) to this file")
+    parser.add_argument("--log", help="run log file (default: data/runs/air-<date>-<time>.jsonl)")
     args = parser.parse_args(argv)
+    if not args.log:
+        runs = Path(__file__).resolve().parent.parent / "data" / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        args.log = str(runs / time.strftime("air-%Y%m%d-%H%M%S.jsonl"))
+    print(f"run log: {args.log}")
     log = TickLog(args.log)
     cfg = json.loads(TELEOP_CONFIG.read_text())
     robot_map = json.loads(ROBOT_MAP.read_text())
