@@ -29,7 +29,6 @@ LABELS = ("forward", "up", "grip")
 SKIP_STEPS = {"ready", "sync", "rest"}    # setup: getting ready, sync clenches (fist, grip label 0), settling
 MAX_DELAY_S = 1.5
 REGULARIZATION = (10.0, 100.0, 1e3, 1e4, 1e5, 1e6)
-FLEXOR_CHANNELS = (0, 2)  # ch1 and ch3: the hand-closing muscles in the earlier recordings
 MIN_VARIANCE = 1e-4       # labels are arm lengths and 0..1 grip, not degrees
 REPO = Path(__file__).resolve().parent.parent
 VIEWER = REPO / "web" / "hand_map" / "viewer.html"
@@ -157,10 +156,12 @@ def fit_rounds(x, y, groups):
 
 
 def emg_fist_check(block: Path, track, delay):
-    """Does EMG on the hand-closing channels rise when the screen says FIST? ratio = fist / open."""
+    """Does EMG rise when the screen says FIST? Per channel fist / open strength, on round steps.
+    Returns (best ratio, its channel number, all ratios), or None. Channels differ between blocks
+    because the band sits a little differently each time it is put on."""
     times, emg, _ = emg_samples(read_jsonl(block / "emg.jsonl"), keep_longest=True)
     k = int(0.1 * SAMPLE_RATE_HZ)
-    env = np.mean([np.convolve(emg[:, c] ** 2, np.ones(k) / k, mode="same") ** 0.5 for c in FLEXOR_CHANNELS], axis=0)
+    env = np.stack([np.convolve(emg[:, c] ** 2, np.ones(k) / k, mode="same") ** 0.5 for c in range(8)], axis=1)
     shown = times - delay
     inside = (shown >= track["time"][0]) & (shown <= track["time"][-1])
     grip = np.interp(shown, track["time"], track["target"]["grip"])
@@ -169,7 +170,9 @@ def emg_fist_check(block: Path, track, delay):
     fist, open_ = inside & in_round & (grip > 0.9), inside & in_round & (grip < 0.1)
     if not fist.any() or not open_.any():
         return None
-    return float(np.median(env[fist]) / max(np.median(env[open_]), 1e-9))
+    ratios = np.median(env[fist], axis=0) / np.maximum(np.median(env[open_], axis=0), 1e-9)
+    best = int(np.argmax(ratios))
+    return float(ratios[best]), best + 1, [round(float(r), 2) for r in ratios]
 
 
 def scores(y, predicted, tested):
@@ -217,10 +220,12 @@ def main(argv: list[str] | None = None) -> int:
         f"{k.replace('_', ' ')} r={follow[k]['r']:.2f} err {follow[k]['mae']:.2f}{'°' if 'flex' in k or 'lift' in k else ''}"
         for k in ("forward", "up", "shoulder_lift", "elbow_flex")))
 
-    ratio = emg_fist_check(block, track, delay)
-    if ratio is not None:
+    check = emg_fist_check(block, track, delay)
+    ratio = check[0] if check else None
+    if check:
         verdict = "good" if ratio >= 2 else "weak" if ratio >= 1.3 else "NO fist response: grip can't be learned"
-        print(f"EMG on hand-closing channels (ch1, ch3), FIST vs open hand: {ratio:.2f}x ({verdict})")
+        print(f"EMG during FIST vs open-hand steps: {ratio:.2f}x on ch{check[1]} ({verdict}); "
+              "per channel " + " ".join(f"ch{c + 1} {r:.1f}" for c, r in enumerate(check[2])))
 
     times, emg_x, motion_x = band_windows(block)
     y, steps, rounds, spots, keep = label_windows(track, times, delay)
