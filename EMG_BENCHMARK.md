@@ -25,6 +25,11 @@ The latest [pick-2 analysis](reports/emg-20261107-pick-2/README.md) repeats this
 frozen test on a cleaner continuous recording. It also compares EMG input
 distributions against the original training interval to diagnose failed transfer.
 
+The [spectral analysis](reports/emg-20261107-spectral/README.md) compares raw and
+conditioned spectra, 125/250 ms spectral-feature correlations, and fixed
+source-selected relationships across all three recordings. It reports modest
+associations and partial elbow transfer in pick-1, with weak replication in pick-2.
+
 Python 3.11 or newer, NumPy, SciPy and PyTorch are needed for training. Matplotlib
 is needed for the correlation plots. The offline commands do not require paired
 EMG hardware, a camera, or the robot.

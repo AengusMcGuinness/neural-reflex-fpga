@@ -1,0 +1,534 @@
+{
+  "method": {
+    "signal": "unrectified eight-channel unsigned ADC counts, raw and causally filtered",
+    "filter": "design_sos from neural_reflex.signal; first-sample steady-state initialization resets at every acquisition segment",
+    "warmup_samples_per_segment": 2048,
+    "psd": "Hann detrended 2048-sample windows, 1024-sample overlap, density scaling; per-window weighted pooled Welch mean",
+    "spectrogram": "channel 8; Hann detrended 1024-sample windows, hop 256, density scaling; separate gap meshes",
+    "power_fraction_denominator": "integrated PSD over 2\u2013500 Hz; fractions are diagnostic concentrations, not confirmed interference",
+    "camera": "all usable EMG acquisition windows included regardless of camera pose validity",
+    "not_model_features": "Spectra are acquisition diagnostics, not model FFT features or EMG\u2013angle correlations"
+  },
+  "sample_rate_hz": 2048,
+  "channels": [
+    "EMG 1",
+    "EMG 2",
+    "EMG 3",
+    "EMG 4",
+    "EMG 5",
+    "EMG 6",
+    "EMG 7",
+    "EMG 8"
+  ],
+  "frequency_range_plotted_hz": [
+    0,
+    500
+  ],
+  "recordings": {
+    "arm-reach": {
+      "recording": "arm-reach",
+      "clock_mode": "ols",
+      "acquisition_segments": 1,
+      "segments_too_short_for_psd": 0,
+      "samples_in_short_segments_without_psd": 0,
+      "samples_inside_psd_windows": 273408,
+      "sample_coverage_fraction_in_psd_windows": 0.9901,
+      "psd_windows": 266,
+      "spectrogram_windows": 1067,
+      "emg_samples_total": 276144,
+      "emg_missing_batches_estimate": 0,
+      "raw_power_2_to_500_adc_count_squared": [
+        20929217.974,
+        363151.316,
+        8593709.945,
+        53463.546,
+        14091.251,
+        16686.888,
+        1272657.691,
+        17479.715
+      ],
+      "filtered_power_2_to_500_adc_count_squared": [
+        2571436.447,
+        44490.212,
+        1014610.101,
+        20112.277,
+        10363.04,
+        11143.448,
+        222775.595,
+        8666.197
+      ],
+      "filtered_to_raw_power_ratio_2_to_500": [
+        0.12286,
+        0.12251,
+        0.11806,
+        0.37619,
+        0.73542,
+        0.6678,
+        0.17505,
+        0.49579
+      ],
+      "raw_power_fractions": {
+        "2_to_20_hz": [
+          0.86905,
+          0.87321,
+          0.87914,
+          0.59874,
+          0.19339,
+          0.26838,
+          0.82676,
+          0.46312
+        ],
+        "20_to_450_hz": [
+          0.1306,
+          0.12652,
+          0.12075,
+          0.40026,
+          0.80375,
+          0.72806,
+          0.17264,
+          0.53221
+        ],
+        "60_plus_minus_2_hz": [
+          0.00686,
+          0.00338,
+          0.00429,
+          0.01237,
+          0.01778,
+          0.02386,
+          0.00817,
+          0.01788
+        ],
+        "120_plus_minus_2_hz": [
+          0.00088,
+          0.00116,
+          0.00033,
+          0.00447,
+          0.02286,
+          0.01778,
+          0.00204,
+          0.0086
+        ],
+        "180_plus_minus_2_hz": [
+          0.00037,
+          0.00066,
+          0.00011,
+          0.00178,
+          0.01188,
+          0.00844,
+          0.00098,
+          0.00487
+        ]
+      },
+      "filtered_power_fractions": {
+        "2_to_20_hz": [
+          0.10768,
+          0.11694,
+          0.15974,
+          0.04906,
+          0.00569,
+          0.00698,
+          0.17257,
+          0.0167
+        ],
+        "20_to_450_hz": [
+          0.89134,
+          0.88231,
+          0.83994,
+          0.95003,
+          0.99293,
+          0.99118,
+          0.82622,
+          0.98007
+        ],
+        "60_plus_minus_2_hz": [
+          0.01887,
+          0.01463,
+          0.01426,
+          0.01662,
+          0.01358,
+          0.01947,
+          0.01658,
+          0.02006
+        ],
+        "120_plus_minus_2_hz": [
+          0.00172,
+          0.00266,
+          0.00064,
+          0.00379,
+          0.01046,
+          0.00801,
+          0.00279,
+          0.00535
+        ],
+        "180_plus_minus_2_hz": [
+          0.00053,
+          0.00091,
+          0.00015,
+          0.00088,
+          0.0033,
+          0.00206,
+          0.00095,
+          0.00184
+        ]
+      },
+      "raw_peak_frequency_2_to_500_hz": [
+        2.0,
+        6.0,
+        4.0,
+        3.0,
+        2.0,
+        2.0,
+        11.0,
+        4.0
+      ],
+      "filtered_peak_frequency_2_to_500_hz": [
+        21.0,
+        21.0,
+        22.0,
+        24.0,
+        102.0,
+        83.0,
+        18.0,
+        28.0
+      ]
+    },
+    "pick-1": {
+      "recording": "pick-1",
+      "clock_mode": "unit",
+      "acquisition_segments": 21,
+      "segments_too_short_for_psd": 20,
+      "samples_in_short_segments_without_psd": 14096,
+      "samples_inside_psd_windows": 246784,
+      "sample_coverage_fraction_in_psd_windows": 0.9381,
+      "psd_windows": 240,
+      "spectrogram_windows": 966,
+      "emg_samples_total": 263072,
+      "emg_missing_batches_estimate": 149,
+      "raw_power_2_to_500_adc_count_squared": [
+        2113629.632,
+        2610.682,
+        1040035.736,
+        2865.319,
+        5702.311,
+        9006.312,
+        55607.252,
+        3429.353
+      ],
+      "filtered_power_2_to_500_adc_count_squared": [
+        148571.542,
+        1926.495,
+        38641.012,
+        2475.226,
+        5163.725,
+        8136.85,
+        50432.309,
+        3098.29
+      ],
+      "filtered_to_raw_power_ratio_2_to_500": [
+        0.07029,
+        0.73793,
+        0.03715,
+        0.86386,
+        0.90555,
+        0.90346,
+        0.90694,
+        0.90346
+      ],
+      "raw_power_fractions": {
+        "2_to_20_hz": [
+          0.92483,
+          0.18588,
+          0.96278,
+          0.04921,
+          0.00692,
+          0.00672,
+          0.00171,
+          0.01047
+        ],
+        "20_to_450_hz": [
+          0.07505,
+          0.80551,
+          0.0371,
+          0.94451,
+          0.9891,
+          0.98737,
+          0.99553,
+          0.98358
+        ],
+        "60_plus_minus_2_hz": [
+          0.00443,
+          0.02283,
+          0.0013,
+          0.03338,
+          0.02911,
+          0.03134,
+          0.01707,
+          0.03603
+        ],
+        "120_plus_minus_2_hz": [
+          0.00041,
+          0.01969,
+          0.0002,
+          0.026,
+          0.03186,
+          0.02896,
+          0.03413,
+          0.02723
+        ],
+        "180_plus_minus_2_hz": [
+          0.00015,
+          0.01287,
+          0.0001,
+          0.0125,
+          0.01205,
+          0.01316,
+          0.01852,
+          0.01119
+        ]
+      },
+      "filtered_power_fractions": {
+        "2_to_20_hz": [
+          0.12888,
+          0.00291,
+          0.15083,
+          0.00179,
+          0.00095,
+          0.0012,
+          0.00028,
+          0.00145
+        ],
+        "20_to_450_hz": [
+          0.87053,
+          0.99304,
+          0.84809,
+          0.99568,
+          0.99751,
+          0.9965,
+          0.99862,
+          0.99625
+        ],
+        "60_plus_minus_2_hz": [
+          0.01551,
+          0.0156,
+          0.01135,
+          0.01847,
+          0.01697,
+          0.0177,
+          0.01016,
+          0.02061
+        ],
+        "120_plus_minus_2_hz": [
+          0.00155,
+          0.00752,
+          0.00166,
+          0.00871,
+          0.0106,
+          0.00934,
+          0.01086,
+          0.00832
+        ],
+        "180_plus_minus_2_hz": [
+          0.00039,
+          0.00319,
+          0.00055,
+          0.00251,
+          0.0023,
+          0.00253,
+          0.00361,
+          0.00214
+        ]
+      },
+      "raw_peak_frequency_2_to_500_hz": [
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        75.0,
+        81.0,
+        121.0,
+        79.0
+      ],
+      "filtered_peak_frequency_2_to_500_hz": [
+        20.0,
+        97.0,
+        22.0,
+        75.0,
+        75.0,
+        81.0,
+        109.0,
+        79.0
+      ]
+    },
+    "pick-2": {
+      "recording": "pick-2",
+      "clock_mode": "unit",
+      "acquisition_segments": 1,
+      "segments_too_short_for_psd": 0,
+      "samples_in_short_segments_without_psd": 0,
+      "samples_inside_psd_windows": 282624,
+      "sample_coverage_fraction_in_psd_windows": 0.9902,
+      "psd_windows": 275,
+      "spectrogram_windows": 1103,
+      "emg_samples_total": 285408,
+      "emg_missing_batches_estimate": 0,
+      "raw_power_2_to_500_adc_count_squared": [
+        3753.989,
+        1829.311,
+        3064.699,
+        16590.081,
+        1635.473,
+        3217.757,
+        6304.668,
+        26485.495
+      ],
+      "filtered_power_2_to_500_adc_count_squared": [
+        3328.548,
+        1553.724,
+        2349.66,
+        2133.978,
+        1364.203,
+        2915.118,
+        5701.67,
+        23947.637
+      ],
+      "filtered_to_raw_power_ratio_2_to_500": [
+        0.88667,
+        0.84935,
+        0.76669,
+        0.12863,
+        0.83413,
+        0.90595,
+        0.90436,
+        0.90418
+      ],
+      "raw_power_fractions": {
+        "2_to_20_hz": [
+          0.01681,
+          0.05662,
+          0.1264,
+          0.86351,
+          0.09137,
+          0.00849,
+          0.00963,
+          0.00534
+        ],
+        "20_to_450_hz": [
+          0.97972,
+          0.93589,
+          0.86918,
+          0.13575,
+          0.90072,
+          0.98526,
+          0.98428,
+          0.99136
+        ],
+        "60_plus_minus_2_hz": [
+          0.0231,
+          0.03319,
+          0.03349,
+          0.00308,
+          0.0315,
+          0.0288,
+          0.02933,
+          0.02268
+        ],
+        "120_plus_minus_2_hz": [
+          0.0326,
+          0.03173,
+          0.0359,
+          0.00306,
+          0.02066,
+          0.02557,
+          0.0297,
+          0.03096
+        ],
+        "180_plus_minus_2_hz": [
+          0.01859,
+          0.01392,
+          0.01649,
+          0.00093,
+          0.00832,
+          0.01348,
+          0.01088,
+          0.01678
+        ]
+      },
+      "filtered_power_fractions": {
+        "2_to_20_hz": [
+          0.00224,
+          0.00169,
+          0.00391,
+          0.05767,
+          0.00245,
+          0.00123,
+          0.00121,
+          0.00093
+        ],
+        "20_to_450_hz": [
+          0.9964,
+          0.99526,
+          0.99409,
+          0.94032,
+          0.99427,
+          0.99635,
+          0.99642,
+          0.99778
+        ],
+        "60_plus_minus_2_hz": [
+          0.01277,
+          0.02022,
+          0.02032,
+          0.01239,
+          0.01761,
+          0.0164,
+          0.01666,
+          0.01329
+        ],
+        "120_plus_minus_2_hz": [
+          0.01093,
+          0.01053,
+          0.01213,
+          0.00734,
+          0.00758,
+          0.00848,
+          0.00911,
+          0.01061
+        ],
+        "180_plus_minus_2_hz": [
+          0.0037,
+          0.00285,
+          0.00359,
+          0.00127,
+          0.00175,
+          0.00244,
+          0.00216,
+          0.00319
+        ]
+      },
+      "raw_peak_frequency_2_to_500_hz": [
+        124.0,
+        2.0,
+        4.0,
+        2.0,
+        2.0,
+        83.0,
+        85.0,
+        113.0
+      ],
+      "filtered_peak_frequency_2_to_500_hz": [
+        96.0,
+        85.0,
+        27.0,
+        20.0,
+        83.0,
+        83.0,
+        85.0,
+        101.0
+      ]
+    }
+  },
+  "spectrogram_shared_db_limits": [
+    -13.892,
+    28.221
+  ]
+}
