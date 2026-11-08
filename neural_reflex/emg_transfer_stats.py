@@ -176,7 +176,7 @@ def correlation_report(pair, replicates=1000):
     result["channel_correlations"] = np.corrcoef(x, rowvar=False)
     result["bootstrap"] = {}
     # EMG 1–shoulder negative and EMG 1–elbow positive were selected in arm-reach.
-    # These two pair/sign checks are declared before inspecting pick-1 associations.
+    # These two pair/sign checks were declared before inspecting picking data.
     for seconds in (2, 5, 10):
         blocks, strata = temporal_blocks(pair["times"], pair["segments"], pair["rounds"], seconds)
         weights = bootstrap_weights(strata, replicates)
@@ -206,7 +206,7 @@ def evaluate_frozen(pair, model_dir, replicates=1000):
     mean = Decoder.load(Path(model_dir) / "constant.npz")
     predicted, baseline = ridge.predict(pair["x"]), mean.predict(pair["x"])
     y = pair["y"]
-    report = {"model": "Previously validation-selected ridge; no fitting on pick-1",
+    report = {"model": "Previously validation-selected ridge; no fitting on the new recording",
               "ridge": extended_score(y, predicted), "training_mean": extended_score(y, baseline),
               "target_std_deg": np.nanstd(y, axis=0),
               "mae_improvement_deg": np.nanmean(np.abs(y-baseline)-np.abs(y-predicted), axis=0),
@@ -288,7 +288,7 @@ def save_plots(result, pairs, model_pair, prediction, baseline, output):
         ax.set_title(f"MAE {mae:.1f}° · R² {r2:.2f}" if r2 is not None else f"MAE {mae:.1f}° · R² undefined",loc="right",fontsize=10)
     axes[0].legend(loc="upper right",ncol=2)
     axes[-1].set_xlabel("Seconds from first camera frame · gaps and warmup excluded")
-    fig.suptitle("Frozen reach-trained decoder on pick-1 · no retraining or lag tuning")
+    fig.suptitle(f"Frozen reach-trained decoder on {names[1]} · no retraining or lag tuning")
     _save(fig, output, "frozen_predictions")
 
     fig, ax = plt.subplots(figsize=(8,4.5),constrained_layout=True)
@@ -299,7 +299,7 @@ def save_plots(result, pairs, model_pair, prediction, baseline, output):
         rect=ax.bar(positions+offset,values,width,label=label,color=color)
         ax.bar_label(rect,fmt="%.1f°",padding=3)
     ax.set_xticks(positions,labels); ax.set_ylabel("Mean absolute error (degrees)")
-    ax.set_title("Transfer to pick-1: does EMG improve over a constant guess?")
+    ax.set_title(f"Transfer to {names[1]}: does EMG improve over a constant guess?")
     ax.legend(); ax.grid(axis="y",alpha=.2); ax.set_axisbelow(True)
     ax.set_ylim(0,max(result["frozen_transfer"]["training_mean"]["mae_deg"]+result["frozen_transfer"]["ridge"]["mae_deg"])*1.25)
     _save(fig,output,"transfer_error")
@@ -323,12 +323,12 @@ def main(argv=None):
     args=parser.parse_args(argv)
     if args.output.exists(): parser.error("output already exists; use a new directory")
     args.output.mkdir(parents=True)
-    result={"method": {"primary": "Frozen EMG1 shoulder-negative/elbow-positive relationships and prior ridge decoder evaluated on new pick-1 recording",
+    result={"method": {"primary": f"Frozen EMG1 shoulder-negative/elbow-positive relationships and prior ridge decoder evaluated on new {args.new_recording.name} recording",
                         "alignment": "fixed +50 ms label offset; no lag search", "side": args.side,
                         "features": {**CONFIG,"correlation_history":1},
                         "labels": "same torso-referenced 3D shoulder elevation, elbow bend and unsigned wrist proxy on both blocks; not prompted target",
                         "bootstrap": "Percentile 95% intervals, paired time-block resampling within acquisition segment and round; 5 s primary, 2/10 s sensitivity; partial blocks retained. Blocks never cross EMG acquisition gaps; missing camera rows within blocks are excluded without compressing time.",
-                        "clock_mapping": "Source retains original first60%-OLS mapping. New recording uses nominal unit device-clock slope and first60%-median receipt offset, selected from timestamp-only startup-backlog evidence before any transfer evaluation; original OLS is sensitivity only.",
+                        "clock_mapping": "Source retains original first60%-OLS mapping. New recording uses nominal unit device-clock slope and first60%-median receipt offset. This protocol was selected from pick-1 timestamp-only startup-backlog evidence before its transfer evaluation and is reused for subsequent recordings; original OLS is sensitivity only.",
                         "replicates":args.replicates,"seed":SEED,
                         "inference_limits": "Descriptive conditional intervals in short nonstationary recordings, not population confidence. Singleton strata do not contribute resampling variance; requested long blocks may be much shorter after gaps.",
                         "multiplicity": "Two previously selected EMG1 pair/sign checks; other correlations and uncorrected pointwise intervals exploratory. No p values reported."},
