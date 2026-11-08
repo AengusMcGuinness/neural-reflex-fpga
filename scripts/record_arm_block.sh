@@ -31,7 +31,7 @@ if [ "${SKIP_BAND_CHECK:-0}" != "1" ]; then
     echo "Band check failed: nothing was recorded. Fix it and run the same command again." >&2
     exit 1
   fi
-  echo "Starting the recording..."
+  echo "Starting the recording: the camera window with the target arm is opening (it can take a few seconds)..."
 fi
 
 "$python" -m neural_reflex record-emg --url "$url" --output "$dir/emg.jsonl" \

@@ -80,12 +80,13 @@ def evaluate(records: list[dict], phases: list[tuple[str, float, float]]) -> dic
             "connections": len(connections), "problems": problems}
 
 
-def collect(url: str, records: list, stop: threading.Event, errors: list):
+def collect(url: str, records: list, stop: threading.Event, errors: list, motion: list | None = None):
     request = urllib.request.Request(url, headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"})
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(request, timeout=5) as response:
-            for record in iter_emg_records(io.TextIOWrapper(response, encoding="utf-8")):
+            on_motion = motion.append if motion is not None else None
+            for record in iter_emg_records(io.TextIOWrapper(response, encoding="utf-8"), on_motion):
                 records.append(record)
                 if stop.is_set():
                     return
@@ -99,10 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", help="where to save fist_check.json (e.g. the block folder)")
     args = parser.parse_args(argv)
     url = assert_local_stream_url(args.url)
-    records, errors, stop = [], [], threading.Event()
-    reader = threading.Thread(target=collect, args=(url, records, stop, errors), daemon=True)
+    records, errors, stop, motion = [], [], threading.Event(), []
+    reader = threading.Thread(target=collect, args=(url, records, stop, errors, motion), daemon=True)
     reader.start()
-    print("\nBAND CHECK (about 20 s). Follow the prompts; no keys to press.\n")
+    print("\nBAND CHECK (about 20 s), here in the Terminal. Follow the prompts; no keys to press.")
+    print("The camera window with the target arm opens AFTER this check passes.\n")
     time.sleep(1.0)
     if errors or not records:
         print(f"Can't read the band stream ({errors[0] if errors else 'nothing arrived'}). "
@@ -119,6 +121,13 @@ def main(argv: list[str] | None = None) -> int:
         print()
     stop.set()
     result = evaluate(list(records), phases)
+    kinds = {m.get("type") for m in motion}
+    if not {"orientation", "gyro"} <= kinds:
+        missing = sorted({"orientation", "gyro"} - kinds)
+        result["problems"].append(f"Kinesis is not sending band {' or '.join(missing)}: turn 'local sensor feed' "
+                                  "off and on in Kinesis (or reconnect the band), then copy the new stream URL")
+        result["ok"] = False
+    result["motion_events"] = len(motion)
     print()
     if "best_ratio" in result:
         print(f"Fist response: {result['best_ratio']:.1f}x on the strongest channel "
