@@ -193,7 +193,9 @@ def schedule(cfg, seed=0):
         order = list(cfg["movements"])
         rng.shuffle(order)
         for m in order:
-            steps.append(("move", m["name"], m["instruction"], cfg["hold_each_s"], rep))
+            # Preview the next movement with a countdown, so you start it on GO, not while reading.
+            steps.append(("ready", m["name"], f"NEXT: {m['instruction']}", cfg.get("ready_s", 3.0), rep))
+            steps.append(("move", m["name"], f"GO: {m['instruction']}", cfg["hold_each_s"], rep))
             steps.append(("rest", "rest", "Back to neutral and relax.", cfg["rest_between_s"], rep))
     return steps
 
@@ -207,7 +209,8 @@ def run_prompts(steps, clock=time.monotonic, sleep=time.sleep, out=sys.stdout):
             left = start + seconds - clock()
             if left <= 0:
                 break
-            out.write(f"\r  {marker}{text}  {left:3.0f} s   ")
+            count = f"get ready... {math.ceil(left)}" if kind == "ready" else f"{left:3.0f} s"
+            out.write(f"\r  {marker}{text}  {count}   ")
             out.flush()
             sleep(min(0.2, left))
         out.write("\n")
@@ -218,6 +221,8 @@ def run_prompts(steps, clock=time.monotonic, sleep=time.sleep, out=sys.stdout):
 def dataset(stream: BandStream, segments, neutral):
     x, y, groups = [], [], []
     for s in segments:
+        if s["kind"] == "ready":          # previewing the next movement: neither rest nor the movement
+            continue
         t = s["start"] + REACTION_S
         while t <= s["end"] - TAIL_S:
             f = window_features(stream, t, neutral)

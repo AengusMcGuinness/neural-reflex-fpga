@@ -2,21 +2,94 @@
   "description": "Movements taught with neural_reflex.movements and the robot motor each one drives. While a movement is recognised continuously for hold_s, its motor moves in `direction` (+1 = larger ticks) at speed_ticks_s; when you stop, the motor holds where it is. Remove a movement from this list to leave it out of teaching and control. For shoulder_lift, larger ticks tilt the arm forward/down from straight up.",
   "hold_s": 0.3,
   "min_confidence": 0.7,
-  "repetitions": 4,
-  "hold_each_s": 3.0,
-  "rest_between_s": 2.0,
+  "repetitions": 3,
+  "hold_each_s": 4.0,
+  "rest_between_s": 3.0,
   "movements": [
-    {"name": "swing_left",   "instruction": "Swing your forearm to the LEFT (like moving a mouse) and hold", "motor": "shoulder_pan",  "direction": -1, "speed_ticks_s": 240},
-    {"name": "swing_right",  "instruction": "Swing your forearm to the RIGHT and hold",                       "motor": "shoulder_pan",  "direction": 1,  "speed_ticks_s": 240},
-    {"name": "tilt_up",      "instruction": "Tilt your forearm UP (hand toward the ceiling) and hold",         "motor": "shoulder_lift", "direction": -1, "speed_ticks_s": 180},
-    {"name": "tilt_down",    "instruction": "Tilt your forearm DOWN (hand toward the floor) and hold",         "motor": "shoulder_lift", "direction": 1,  "speed_ticks_s": 180},
-    {"name": "palm_up",      "instruction": "Roll your forearm so the PALM faces UP and hold",                 "motor": "wrist_roll",    "direction": 1,  "speed_ticks_s": 300},
-    {"name": "palm_down",    "instruction": "Roll your forearm so the PALM faces DOWN and hold",               "motor": "wrist_roll",    "direction": -1, "speed_ticks_s": 300},
-    {"name": "wrist_up",     "instruction": "Keep the forearm still, BEND your WRIST UP (back of hand up) and hold", "motor": "wrist_flex", "direction": -1, "speed_ticks_s": 240},
-    {"name": "wrist_down",   "instruction": "Keep the forearm still, BEND your WRIST DOWN and hold",           "motor": "wrist_flex",    "direction": 1,  "speed_ticks_s": 240},
-    {"name": "index_pinch",  "instruction": "PINCH thumb and INDEX finger together firmly and hold",           "motor": "elbow_flex",    "direction": 1,  "speed_ticks_s": 240},
-    {"name": "middle_pinch", "instruction": "PINCH thumb and MIDDLE finger together firmly and hold",          "motor": "elbow_flex",    "direction": -1, "speed_ticks_s": 240},
-    {"name": "fist",         "instruction": "Make a FIRM FIST and hold",                                       "motor": "gripper",       "direction": 1,  "speed_ticks_s": 300},
-    {"name": "spread",       "instruction": "SPREAD your fingers wide and hold",                               "motor": "gripper",       "direction": -1, "speed_ticks_s": 300}
-  ]
+    {
+      "name": "swing_left",
+      "instruction": "Swing your forearm to the LEFT (like moving a mouse) and hold",
+      "motor": "shoulder_pan",
+      "direction": -1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "swing_right",
+      "instruction": "Swing your forearm to the RIGHT and hold",
+      "motor": "shoulder_pan",
+      "direction": 1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "tilt_up",
+      "instruction": "Tilt your forearm UP (hand toward the ceiling) and hold",
+      "motor": "shoulder_lift",
+      "direction": -1,
+      "speed_ticks_s": 180
+    },
+    {
+      "name": "tilt_down",
+      "instruction": "Tilt your forearm DOWN (hand toward the floor) and hold",
+      "motor": "shoulder_lift",
+      "direction": 1,
+      "speed_ticks_s": 180
+    },
+    {
+      "name": "palm_up",
+      "instruction": "Roll your forearm so the PALM faces UP and hold",
+      "motor": "wrist_roll",
+      "direction": 1,
+      "speed_ticks_s": 300
+    },
+    {
+      "name": "palm_down",
+      "instruction": "Roll your forearm so the PALM faces DOWN and hold",
+      "motor": "wrist_roll",
+      "direction": -1,
+      "speed_ticks_s": 300
+    },
+    {
+      "name": "wrist_up",
+      "instruction": "Keep the forearm still, BEND your WRIST UP (back of hand up) and hold",
+      "motor": "wrist_flex",
+      "direction": -1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "wrist_down",
+      "instruction": "Keep the forearm still, BEND your WRIST DOWN and hold",
+      "motor": "wrist_flex",
+      "direction": 1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "index_pinch",
+      "instruction": "PINCH thumb and INDEX finger together firmly and hold",
+      "motor": "elbow_flex",
+      "direction": 1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "middle_pinch",
+      "instruction": "PINCH thumb and MIDDLE finger together firmly and hold",
+      "motor": "elbow_flex",
+      "direction": -1,
+      "speed_ticks_s": 240
+    },
+    {
+      "name": "fist",
+      "instruction": "Make a FIRM FIST and hold",
+      "motor": "gripper",
+      "direction": 1,
+      "speed_ticks_s": 300
+    },
+    {
+      "name": "spread",
+      "instruction": "SPREAD your fingers wide and hold",
+      "motor": "gripper",
+      "direction": -1,
+      "speed_ticks_s": 300
+    }
+  ],
+  "ready_s": 3.0
 }
