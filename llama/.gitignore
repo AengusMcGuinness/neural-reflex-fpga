@@ -1,0 +1,12 @@
+models/
+ref_out/
+host/.venv/
+__pycache__/
+# Dandi's 6.205 files: track only the ones the build uses
+dandi/*
+!dandi/ddr3_top.sv
+!dandi/ddr3_controller.sv
+!dandi/ddr3_phy.sv
+!dandi/lab06_clk_wiz.v
+!dandi/top_level.xdc
+build/
