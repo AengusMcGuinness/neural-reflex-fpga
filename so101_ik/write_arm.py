@@ -447,19 +447,24 @@ def drive(controller, targets: np.ndarray, owner: np.ndarray, plan: dict, *, spe
         # arm is not left outstretched over the table when the motors go limp.
         controller.set_speed("fine")
         out.write(f"parking back at the start pose at 'fine' speed: {start_pose}\n")
-        t3 = time.monotonic()
-        while True:
-            for j, t in start_pose.items():
-                controller.target(j, t, epoch)
-            controller.heartbeat(epoch)
-            positions = measured(controller)
-            log.write(event="park", targets=start_pose, positions=positions)
-            worst = max(abs(positions[j] - start_pose[j]) for j in JOINTS)
-            out.write(f"\r  parking: worst joint {worst:4d} ticks away   ")
-            out.flush()
-            if worst <= SETTLE_TICKS or time.monotonic() - t3 > SETTLE_TIMEOUT_S:
-                break
-            time.sleep(0.25)
+        # Two stages: first bring the shoulder/pan/wrist home while the elbow stays bent (the band
+        # helps the shoulder), then unbend the elbow. Unbending a bent elbow while the shoulder is
+        # still forward stalled the elbow servo on a live run.
+        stages = [{j: t for j, t in start_pose.items() if j != "elbow_flex"}, dict(start_pose)]
+        for stage_no, stage in enumerate(stages, 1):
+            t3 = time.monotonic()
+            while True:
+                for j, t in stage.items():
+                    controller.target(j, t, epoch)
+                controller.heartbeat(epoch)
+                positions = measured(controller)
+                log.write(event="park", stage=stage_no, targets=stage, positions=positions)
+                worst = max(abs(positions[j] - stage[j]) for j in stage)
+                out.write(f"\r  parking stage {stage_no}/2: worst joint {worst:4d} ticks away   ")
+                out.flush()
+                if worst <= SETTLE_TICKS or time.monotonic() - t3 > SETTLE_TIMEOUT_S:
+                    break
+                time.sleep(0.25)
         out.write("\nparked.\n")
         return True
     finally:

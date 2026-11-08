@@ -33,6 +33,7 @@ from so101_ik.fk import JOINT_LIMITS, JOINTS, N_JOINTS, build_so101_model, forwa
 from so101_ik.text_strokes import (DEFAULT_FONT, DEFAULT_HEIGHT_M, MAX_SPACING_M, strokes_bbox,
                                    strokes_length, text_to_strokes)
 
+PAN_AXIS_X_M = 0.0388353              # shoulder_pan joint origin in base_link (URDF)
 TABLE_Z_M = 0.0                        # bottom of base_link, where the base is clamped
 DEFAULT_PEN_TIP_OFFSET_M = (0.0, 0.0, 0.05)
 # Wrist roll is held at its seed for the whole plan (newton.py zeroes its Jacobian column for the
@@ -128,7 +129,10 @@ def target_pose(xyz, tilt_rad=0.0):
     if abs(tilt_rad) < 1e-9:
         T[:3, :3] = PEN_DOWN_ROTATION
     else:
-        radial = np.array([xyz[0], xyz[1], 0.0])
+        # The arm's vertical plane passes through the pan axis (x = 0.0388 in base_link), not the
+        # base_link origin; using the origin here skews the requested axis out of the arm's plane
+        # for off-centre targets and makes Newton chase it with wrist roll.
+        radial = np.array([xyz[0] - PAN_AXIS_X_M, xyz[1], 0.0])
         n = float(np.linalg.norm(radial))
         radial = radial / n if n > 1e-9 else np.array([1.0, 0.0, 0.0])
         z_axis = math.sin(tilt_rad) * radial + np.array([0.0, 0.0, -math.cos(tilt_rad)])

@@ -126,7 +126,8 @@ def axis_error(z_cur: np.ndarray, z_des: np.ndarray, angle: float | None = None)
     return angle * axis / norm
 
 
-def _task_jacobian(q: np.ndarray, T_cur: np.ndarray, model: dict, task: str, jacobian: str) -> np.ndarray:
+def _task_jacobian(q: np.ndarray, T_cur: np.ndarray, model: dict, task: str, jacobian: str,
+                   lock_roll: bool = True) -> np.ndarray:
     J = space_jacobian(q, model)  # (6, n) rows [linear; angular], space frame
     J_v = J[:3]
     J_w = J[3:]
@@ -142,7 +143,8 @@ def _task_jacobian(q: np.ndarray, T_cur: np.ndarray, model: dict, task: str, jac
         # The pen tip is off the roll axis, so the roll column has a small linear part that the
         # damped solve would use to trim position error; zeroing the column keeps dq[roll] == 0 and
         # the roll exactly at its seed value for the whole plan.
-        J[:, WRIST_ROLL] = 0.0
+        if lock_roll:
+            J[:, WRIST_ROLL] = 0.0
         return J
     return np.vstack([J_v, J_w])
 
@@ -158,6 +160,7 @@ def ik_newton_refine(
     max_step: float = 0.5,
     jacobian: str = "tool",
     limits=None,
+    lock_roll: bool = True,
 ) -> tuple[np.ndarray, int, float, float, bool]:
     """Damped Newton-Raphson IK.
 
@@ -165,7 +168,9 @@ def ik_newton_refine(
     ``task="pen"`` the reported rotation error is the angle between the current
     and desired tool z-axes.  ``limits`` is an optional ``(lo, hi)`` pair of
     per-joint arrays used for clipping instead of the URDF ``JOINT_LIMITS``
-    (e.g. the physical servo range of a calibrated arm).
+    (e.g. the physical servo range of a calibrated arm).  ``lock_roll=False`` lets the
+    pen task move wrist_roll too (needed when the frozen-roll 4-DOF chain cannot meet a
+    5-constraint target exactly, e.g. a hand held sideways in the air).
     """
     T_target = np.asarray(T_target, dtype=np.float64)
     q = np.asarray(q_init, dtype=np.float64).flatten().copy()
@@ -187,7 +192,7 @@ def ik_newton_refine(
         if pos_err < eps_v and rot_err < eps_w_rad:
             return q, it, pos_err * 1e3, float(np.degrees(rot_err)), True
 
-        J = _task_jacobian(q, T_cur, model, task, jacobian)
+        J = _task_jacobian(q, T_cur, model, task, jacobian, lock_roll)
         lam = 0.01 * float(np.linalg.norm(err))
         JtJ = J.T @ J
         try:
