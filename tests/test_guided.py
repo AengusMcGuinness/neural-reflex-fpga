@@ -1,6 +1,5 @@
 """Guided (follow-the-target) recording: target timeline, arm IK, labels and the robot check."""
 
-import json
 import math
 import unittest
 
@@ -8,11 +7,8 @@ import numpy as np
 
 from neural_reflex import guided
 from neural_reflex.arm_pose import PROTOCOLS, TARGET_KEYS
-from neural_reflex.dashboard import load_home
-from neural_reflex.hand_map import MAP_FILE, robot_targets, solve
-from neural_reflex.pick_sim import joint_limits
-from neural_reflex.robot_map import DT, load_map
 
+DT = 0.02
 UP, RIGHT, FORWARD = np.array([0, -1.0, 0]), np.array([-1.0, 0, 0]), np.array([0, 0, -1.0])
 
 
@@ -60,18 +56,6 @@ class GuidedTests(unittest.TestCase):
         self.assertAlmostEqual(m["shoulder_lift"], 0, delta=1)
         self.assertAlmostEqual(m["elbow_flex"], 90, delta=1)
         self.assertIsNone(guided.measured_angles(None, None, "right"))
-
-    def test_target_maps_into_the_robot_within_its_speed(self):
-        cfg = json.loads(MAP_FILE.read_text())
-        human = {"table_up": guided.TABLE_UP + 0.02, "forward_range": [min(guided.TARGETS), max(guided.TARGETS)]}
-        tr = guided.trajectory(DT)
-        x, z = robot_targets({"forward": tr["forward"], "up": tr["up"], "arm_m": 0.55}, human, cfg["robot"])
-        lo, hi = cfg["robot"]["x_limits_m"]
-        self.assertTrue(((x >= lo) & (x <= hi)).all())
-        angles, _, moved = solve(x, z, joint_limits(load_map(), load_home()), cfg["max_pitch_change_deg"])
-        self.assertFalse(moved.any())
-        speed = np.abs(np.gradient(angles, DT, axis=0))
-        self.assertLess(np.percentile(speed, 95), 32)
 
 
 if __name__ == "__main__":

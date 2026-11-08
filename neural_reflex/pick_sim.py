@@ -25,7 +25,6 @@ from pathlib import Path
 import numpy as np
 
 from .dashboard import load_home
-from .robot_map import follow, load_map
 
 REPO = Path(__file__).resolve().parent.parent
 VIEWER = REPO / "web" / "pick_sim" / "viewer.html"
@@ -78,6 +77,28 @@ DIRECTION_CHECKED = {"shoulder_lift": True, "elbow_flex": False, "wrist_flex": F
 PLANAR = ("shoulder_lift", "elbow_flex", "wrist_flex")
 GRIPPER_CLOSE_TICKS = 500   # robot_map gripper gain; direction unchecked
 GRIP_CLOSE_S = 3.0          # 500 ticks with a 1.875x peak stays under the 360 ticks/s cap
+
+
+def load_map() -> dict:
+    """Motor limits, safety margin and speed caps (config/robot_map.json)."""
+    return json.loads((REPO / "config" / "robot_map.json").read_text())
+
+
+def follow(target: np.ndarray, start: float, cap: float, accel: float, dt: float = 0.02) -> np.ndarray:
+    """Same speed/acceleration-limited profile as the arm controller's motion loop."""
+    position, velocity = float(start), 0.0
+    out = np.empty(len(target))
+    for i, goal in enumerate(target):
+        difference = goal - position
+        desired = np.copysign(min(cap, np.sqrt(2 * accel * abs(difference))), difference)
+        velocity += np.clip(desired - velocity, -accel * dt, accel * dt)
+        velocity = np.clip(velocity, -cap, cap)
+        step = velocity * dt
+        position = goal if abs(step) >= abs(difference) else position + step
+        if position == goal:
+            velocity = 0.0
+        out[i] = position
+    return out
 
 
 def joint_limits(config: dict, home: dict) -> dict:

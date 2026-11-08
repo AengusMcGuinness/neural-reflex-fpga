@@ -20,3 +20,4 @@ data/models/
 data/sessions/
 *.task
 data/sim/
+data/runs/
