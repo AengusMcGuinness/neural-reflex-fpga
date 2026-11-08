@@ -47,6 +47,7 @@ HARD_CAP_TICKS_PER_S = 360.0
 HOME_TOLERANCE = 150         # ticks (~13 deg) from straight up, as neural_reflex.air_arm.HOME_TOLERANCE
 SETTLE_TICKS = 25            # "arrived" at the first hover point
 SETTLE_TIMEOUT_S = 60.0
+ELBOW_PARK_MAX_TICKS = 400   # ~35 deg: the most the elbow may unbend under load when parking
 KEEPALIVE_PERIOD_S = 0.5     # re-send the hover targets this often while the MOVE prompt waits
 APPROACH_SIM_DT_S = 0.02     # FK cadence of the simulated approach in --check
 
@@ -451,6 +452,17 @@ def drive(controller, targets: np.ndarray, owner: np.ndarray, plan: dict, *, spe
         # helps the shoulder), then unbend the elbow. Unbending a bent elbow while the shoulder is
         # still forward stalled the elbow servo on a live run.
         stages = [{j: t for j, t in start_pose.items() if j != "elbow_flex"}, dict(start_pose)]
+        # The elbow servo cannot unbend the forearm against gravity from a deep bend (it stalled at
+        # ~1250 ticks of travel on two live runs), so stage 2 is skipped when it would unbend by
+        # more than ELBOW_PARK_MAX_TICKS; the arm is then released with the elbow bent, and the
+        # operator is told to support the forearm.
+        cal_elbow = load_calibration()["joints"]["elbow_flex"]
+        elbow_now = measured(controller)["elbow_flex"]
+        unbend = cal_elbow["sign"] * (elbow_now - start_pose["elbow_flex"])
+        if unbend > ELBOW_PARK_MAX_TICKS:
+            out.write(f"  elbow is bent {unbend} ticks beyond its start pose; not unbending it under load "
+                      f"(limit {ELBOW_PARK_MAX_TICKS}). Support the forearm when the motors release.\n")
+            stages = stages[:1]
         for stage_no, stage in enumerate(stages, 1):
             t3 = time.monotonic()
             while True:

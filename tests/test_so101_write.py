@@ -548,9 +548,11 @@ class ElbowCapAndSpeedCapTest(unittest.TestCase):
         self.assertLess(self.elbow_max, 180)
         cap = write_arm.elbow_cap_ticks(self.cal, self.elbow_max)
         self.assertEqual(cap, int(c["home_tick"] + self.elbow_max * 4096 / 360))
-        self.assertLess(cap, self.motor_hi, "the mechanical stop should bind before the motor limit")
-        self.assertEqual(write_arm.tick_limits(self.cal)["elbow_flex"][1], cap)
-        self.assertEqual(write_arm.tick_limits(self.cal, None)["elbow_flex"][1], cap)
+        # Whichever binds first (the mechanical stop or the motor limit minus margin) is the limit;
+        # which one that is depends on the calibrated home tick.
+        expected_hi = min(cap, self.motor_hi)
+        self.assertEqual(write_arm.tick_limits(self.cal)["elbow_flex"][1], expected_hi)
+        self.assertEqual(write_arm.tick_limits(self.cal, None)["elbow_flex"][1], expected_hi)
         # a stop past the motor range: the motor limit wins
         past_motor = (self.motor_hi - c["home_tick"]) * 360 / 4096 + 10
         self.assertEqual(write_arm.tick_limits(self.cal, past_motor)["elbow_flex"][1], self.motor_hi)
@@ -561,12 +563,16 @@ class ElbowCapAndSpeedCapTest(unittest.TestCase):
                                c["home_tick"] + self.elbow_max * 4096 / 360, places=6)
         # calibrated_limits carries the same cap into the solver's joint limits
         _, hi = write_plan.calibrated_limits(self.cal, self.elbow_max)
-        self.assertAlmostEqual(write_arm.q_to_ticks([0, 0, hi[write_plan.ELBOW_INDEX], 0, 0], self.cal)[2], cap, places=6)
+        urdf_hi_tick = write_arm.q_to_ticks([0, 0, write_plan._LIMITS_HI[write_plan.ELBOW_INDEX], 0, 0], self.cal)[2]
+        self.assertAlmostEqual(write_arm.q_to_ticks([0, 0, hi[write_plan.ELBOW_INDEX], 0, 0], self.cal)[2],
+                               min(expected_hi, urdf_hi_tick), places=6)
 
     def test_plan_beyond_elbow_stop_is_refused(self):
         c = self.cal["joints"]["elbow_flex"]
         # a bend past the stop but inside the motor range (halfway between the two)
         motor_deg = (self.motor_hi - c["home_tick"]) * 360 / 4096
+        if motor_deg <= self.elbow_max:
+            self.skipTest("with this calibration the motor limit binds before the mechanical stop")
         bend = round((self.elbow_max + motor_deg) / 2.0, 1)
         self.assertGreater(bend, self.elbow_max)
         q_elbow = c["q_home_rad"] + c["sign"] * np.radians(bend)
