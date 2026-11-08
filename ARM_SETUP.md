@@ -181,3 +181,28 @@ Hiwonder's [SO-ARM101 manual](https://docs.hiwonder.com/projects/LeRobot/en/late
 describes the leader's normal role and servo ratings. The source driver uses
 Hiwonder's `hx30hm` serial profile for the leader role too; this setup uses
 that same profile without rewriting motor IDs or calibration.
+
+## Record decoder labels with the arm (puppet mode)
+
+The arm's encoders (0.09° per tick) make far better training labels than webcam angles, and they
+are already in robot ticks, so no camera mapping is involved. Wear the band, hold the handle, and
+move the arm yourself with **torque off**. The recorder only reads; it refuses to start if any joint
+has torque on.
+
+```bash
+./scripts/record_puppet_block.sh data/sessions/$(date +%Y%m%d-%H%M%S) puppet-1 'STREAM_URL' /dev/cu.YOUR_ARM_PORT
+```
+
+The terminal walks through a ~2.5 minute routine: home hold, slow shoulder sweeps and holds, slow
+elbow sweeps and holds, slow reaches, and free slow movement. Keep moves slow (about 4 s per sweep);
+the motors cannot follow faster than ~16–32°/s. Record several blocks, taking the band off and on
+between some of them, then train on all of them:
+
+```bash
+python -m neural_reflex.decode_arm data/sessions/*/blocks/puppet-* --labels encoders
+```
+
+It reports held-out error in robot degrees (mean, 95th percentile, max, and share within 2°), and
+writes `data/models/arm_decoder.npz`, a `robot_plan_decoded.json` and `robot_preview_decoded.html` per
+block. Check the plan with `./scripts/play_plan <plan> --dry-run`, then run the live loop with
+`python -m neural_reflex.live_arm`.
