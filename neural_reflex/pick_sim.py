@@ -25,7 +25,8 @@ from pathlib import Path
 import numpy as np
 
 from .dashboard import load_home
-from .robot_map import follow, load_map
+# robot_map (follow, load_map) pulls in scipy via the EMG pipeline; it is imported inside main() so the
+# kinematics here also run in the arm's own Python environment, which has numpy but not scipy.
 
 REPO = Path(__file__).resolve().parent.parent
 VIEWER = REPO / "web" / "pick_sim" / "viewer.html"
@@ -255,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not 1 <= args.speed <= 30:
         parser.error("--speed must be 1..30 deg/s (the motors cap near 32)")
+    from .robot_map import follow, load_map
     config, home = load_map(), load_home()
     limits = joint_limits(config, home)
     rows = reach_map(limits, args.item_height, args.lift)

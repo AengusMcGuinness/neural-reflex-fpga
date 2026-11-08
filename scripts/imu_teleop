@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Live band-IMU control of the SO-ARM101 (dry run unless --execute).
+# usage: scripts/imu_teleop --url 'KINESIS_STREAM_URL' [--port /dev/cu.…] [--execute]
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+venv_python="$repo_root/.local/arm-venv/bin/python"
+driver_src="$repo_root/.local/hiwonder-SoArm-101/src"
+if [[ ! -x "$venv_python" || ! -d "$driver_src" ]]; then
+  echo "Run ./scripts/setup_leader_arm.sh first" >&2
+  exit 1
+fi
+cd "$repo_root"
+export PYTHONPATH="$driver_src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$venv_python" -m neural_reflex.imu_teleop "$@"
