@@ -8,6 +8,7 @@ counter, so tokens/second is measured in hardware (the UART is not in the timed 
 Checks: the board's tokens must equal the C++ golden model's (fp4/golden/*.tokens) exactly.
 
 usage (the Urbana's UART is the FT2232H's second channel, e.g. /dev/cu.usbserial-<serial>1):
+  fp4_host.py --port /dev/cu.usbserial-XXXX1 stream          # endless stories, Ctrl-C to stop
   fp4_host.py --port /dev/cu.usbserial-XXXX1 check            # all golden cases, exact match
   fp4_host.py --port /dev/cu.usbserial-XXXX1 run -i "Once upon a time" -n 256
 """
@@ -21,7 +22,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-from llama_host import Board, Tokenizer  # noqa: E402
+from llama_host import Board, Tokenizer, sum32  # noqa: E402
 
 STATUS = 0x4000_0000
 MAGIC = 0xF4F4_0001
@@ -64,6 +65,108 @@ def run_board(board, R, prompt, steps, timeout=10.0):
     return toks, (hi << 32) | lo, hz
 
 
+def run_chunk(board, R, prompt, steps, expect_s=0.0, timeout=10.0):
+    """One FPGA run with a single USB round trip in the common case: all writes go out
+    without waiting for their acks; after sleeping for the expected FPGA time, one batch
+    reads ap_ctrl, n_out, the tokens and the cycle counter. Assumes GIE/IER are set and an
+    ap_done is pending from the previous run (stream() guarantees both)."""
+    cmds = [(R["ADDR_PROMPT_BASE"], struct.pack(f"<{len(prompt)}i", *prompt)),
+            (R["ADDR_N_PROMPT_DATA"], struct.pack("<I", len(prompt))),
+            (R["ADDR_STEPS_DATA"], struct.pack("<I", steps)),
+            (R["ADDR_ISR"], struct.pack("<I", 1)),       # clear the previous ap_done (toggle)
+            (R["ADDR_AP_CTRL"], struct.pack("<I", 1))]   # ap_start
+    board.s.write(b"".join(b"W" + struct.pack("<II", a, len(d) // 4) + d for a, d in cmds))
+    t0 = time.time()
+    if expect_s > 0:
+        time.sleep(expect_s)
+    reads = [(R["ADDR_AP_CTRL"], 1), (R["ADDR_N_OUT_DATA"], 1), (R["ADDR_TOKENS_BASE"], steps), (STATUS, 2)]
+    acks_pending = True
+    while True:
+        board.s.write(b"".join(b"R" + struct.pack("<II", a, n) for a, n in reads))
+        if acks_pending:
+            for a, d in cmds:
+                ack = board._read(5)
+                if ack[:1] != b"K" or struct.unpack("<I", ack[1:])[0] != sum32(d):
+                    raise IOError(f"bad ack {ack!r} for write to 0x{a:x}")
+            acks_pending = False
+        ctrl = struct.unpack("<I", board._read(4))[0]
+        n = struct.unpack("<i", board._read(4))[0]
+        raw = board._read(4 * steps)
+        lo, hi = struct.unpack("<2I", board._read(8))
+        if ctrl & 0x2:  # ap_done: n_out, tokens and the counter were read after completion
+            break
+        if time.time() - t0 > timeout:
+            raise IOError("kernel did not finish")
+    if n < 1:
+        raise IOError(f"kernel rejected the arguments (n_out={n})")
+    return list(struct.unpack(f"<{n}i", raw[:4 * n])), (hi << 32) | lo
+
+
+OPENERS = ["Once upon a time", "One day", "Lily and Ben", "The little dog", "Tom had a red ball",
+           "There was a big tree", "Sue liked to sing", "A cat named Max", "It was a sunny day",
+           "The bird flew"]
+
+
+def stream(board, R, tok, opener, context, window, limit, quiet=False):
+    """Endless generation: each chunk re-prompts the FPGA with BOS + the last `context`-1
+    tokens and computes `window` positions. When a story ends (BOS), start the next one
+    from the next opener. Prints live; stops after `limit` new tokens (0 = until Ctrl-C)."""
+    if not 1 <= context <= 64 or not context < window <= 256:
+        raise ValueError("need 1 <= context <= 64 and context < window <= 256")
+    board.wr32(R["ADDR_GIE"], 1)
+    board.wr32(R["ADDR_IER"], 1)
+    if not board.rd32(R["ADDR_ISR"]) & 1:
+        # make sure an ap_done is pending, so run_chunk's toggle always clears it
+        run_board(board, R, [1], 1)
+    hz = board.rd32(STATUS + 8)
+    out = sys.stdout.buffer
+    k = 0
+    hist = tok.encode(opener.encode("utf-8"))[1:]       # without BOS
+    prev = 1
+    for t in hist:
+        out.write(Tokenizer.safe(tok.decode(prev, t)))
+        prev = t
+    out.flush()
+    new_total = pos_total = cyc_total = 0
+    t_start = time.time()
+    expect = 0.0
+    try:
+        while limit == 0 or new_total < limit:
+            prompt = [1] + hist[-(context - 1):] if context > 1 else [1]
+            toks, cycles = run_chunk(board, R, prompt, window, expect)
+            expect = 0.97 * cycles / hz  # next chunk: same window, about the same FPGA time
+            cyc_total += cycles
+            pos_total += len(toks)
+            ended = False
+            for t in toks[len(prompt) - 1:]:
+                if t == 1:
+                    ended = True
+                    break
+                out.write(Tokenizer.safe(tok.decode(prev, t)))
+                prev = t
+                hist.append(t)
+                new_total += 1
+            out.flush()
+            if ended:
+                k = (k + 1) % len(OPENERS)
+                hist = tok.encode(OPENERS[k].encode("utf-8"))[1:]
+                out.write(b"\n\n")
+                prev = 1
+                for t in hist:
+                    out.write(Tokenizer.safe(tok.decode(prev, t)))
+                    prev = t
+                out.flush()
+    except KeyboardInterrupt:
+        pass
+    wall = time.time() - t_start
+    fsec = cyc_total / hz
+    print(f"\n\n[{new_total:,} new tokens in {wall:.2f} s wall = {new_total / max(wall, 1e-9):,.0f} tok/s end to end; "
+          f"FPGA busy {fsec * 1e3:.1f} ms = {new_total / max(fsec, 1e-9):,.0f} new tok/s "
+          f"({pos_total / max(fsec, 1e-9):,.0f} positions/s incl. re-read context); "
+          f"context {context}, window {window}]", file=sys.stderr)
+    return new_total, wall, fsec
+
+
 def text(tok, prompt, amax):
     out, t = b"", prompt[0]
     for pos in range(len(amax)):
@@ -93,6 +196,11 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("-i", "--prompt", default="Once upon a time")
     r.add_argument("-n", "--steps", type=int, default=256)
+    st = sub.add_parser("stream", help="generate forever (Ctrl-C to stop), re-prompting with recent tokens")
+    st.add_argument("-i", "--prompt", default="Once upon a time")
+    st.add_argument("-c", "--context", type=int, default=48, help="tokens carried into each chunk (<= 64)")
+    st.add_argument("-w", "--window", type=int, default=256, help="positions per FPGA run (<= 256)")
+    st.add_argument("-n", "--tokens", type=int, default=0, help="stop after this many new tokens (0 = never)")
     args = ap.parse_args()
 
     board = Board(args.port, args.baud)
@@ -101,6 +209,10 @@ def main():
         raise SystemExit(f"not the FP4 bitstream (status magic 0x{magic:08x})")
     R = ctrl_map()
     tok = Tokenizer(os.path.join(ROOT, "fp4", "tok512.bin"), 512)  # llama2.c's stories260K tokenizer
+
+    if args.cmd == "stream":
+        stream(board, R, tok, args.prompt, args.context, args.window, args.tokens)
+        return 0
 
     if args.cmd == "run":
         prompt = tok.encode(args.prompt.encode("utf-8"))

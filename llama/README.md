@@ -46,7 +46,17 @@ python3 -m venv host/.venv && host/.venv/bin/pip install pyserial==3.5
    comes from a cycle counter on the FPGA, so the UART is not in the timing. Compare with the
    Mac numbers at `-n 256`: shorter runs are faster because attention covers fewer positions.
 
-5. Check the board against the golden model. All 8 prompts must match token for token:
+5. Generate forever (Ctrl-C to stop; it then prints the speed):
+   ```bash
+   host/.venv/bin/python host/fp4_host.py --port /dev/cu.usbserial-XXXX1 stream
+   ```
+   Each FPGA run computes 256 positions. The next run is re-prompted with BOS plus the last 47
+   tokens (`-w`/`-c` change this). When a story ends, the next one starts from a rotating list of
+   openers; greedy decoding is deterministic, so a bare restart would repeat. Each run costs one
+   USB round trip. Measured: about 3,900 new tokens/s end to end, against about 7,400–7,800 new
+   tokens/s of FPGA time. The gap is USB latency and UART transfer.
+
+6. Check the board against the golden model. All 8 prompts must match token for token:
    ```bash
    host/.venv/bin/python host/fp4_host.py --port /dev/cu.usbserial-XXXX1 check
    ```
