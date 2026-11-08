@@ -59,6 +59,20 @@ class ElbowStop:
 
     def ok(self, q) -> bool:
         return self.max_deg is None or self.bend_deg(q) <= float(self.max_deg)
+
+
+def calibrated_limits(cal=None, elbow_max_deg=None):
+    """Joint limits in URDF radians that the physical arm can actually reach: the servo tick limits
+    (minus write_arm's margin, elbow capped at the mechanical stop) mapped through the calibration,
+    intersected with the URDF limits.  Returns (lo, hi) arrays."""
+    from so101_ik.write_arm import load_calibration, tick_limits, ticks_to_q
+    cal = load_calibration() if cal is None else cal
+    limits = tick_limits(cal, elbow_max_deg)
+    a = ticks_to_q([limits[j][0] for j in JOINTS], cal)
+    b = ticks_to_q([limits[j][1] for j in JOINTS], cal)
+    lo = np.maximum(np.minimum(a, b), _LIMITS_LO)      # a negative sign swaps the ends
+    hi = np.minimum(np.maximum(a, b), _LIMITS_HI)
+    return lo, hi
 # Tool z straight down (-z of base); the x/y columns only fix the free roll's reference.
 PEN_DOWN_ROTATION = np.array([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]])
 PEN_DOWN_SPEED_MPS = 0.03              # nominal, only used for the waypoint timestamps
@@ -96,9 +110,22 @@ def timestamps(path, down_speed=PEN_DOWN_SPEED_MPS, up_speed=PEN_UP_SPEED_MPS):
     return out
 
 
-def target_pose(xyz):
+def target_pose(xyz, tilt_rad=0.0):
+    """Pen-tip pose: tool z-axis pointing down, optionally tilted ``tilt_rad`` away from vertical in the
+    arm's own (radial) plane so the pen leans back toward the base like a hand-held pen.  A tilt keeps
+    the wrist lower and closer to the shoulder, which this leader arm's small servos can hold."""
     T = np.eye(4)
-    T[:3, :3] = PEN_DOWN_ROTATION
+    if abs(tilt_rad) < 1e-9:
+        T[:3, :3] = PEN_DOWN_ROTATION
+    else:
+        radial = np.array([xyz[0], xyz[1], 0.0])
+        n = float(np.linalg.norm(radial))
+        radial = radial / n if n > 1e-9 else np.array([1.0, 0.0, 0.0])
+        z_axis = math.sin(tilt_rad) * radial + np.array([0.0, 0.0, -math.cos(tilt_rad)])
+        y_axis = np.cross(z_axis, radial)          # horizontal, perpendicular to the arm's plane
+        y_axis /= np.linalg.norm(y_axis)
+        x_axis = np.cross(y_axis, z_axis)
+        T[:3, :3] = np.stack([x_axis, y_axis, z_axis], axis=1)
     T[:3, 3] = xyz
     return T
 
@@ -132,7 +159,8 @@ class DnnSolver:
         self.fallback = NewtonOnlySolver(self.ik.robot, **newton_kwargs)
 
     def solve(self, T, q_seed):
-        q_dnn = np.clip(self.ik.solve(T, q_seed), _LIMITS_LO, _LIMITS_HI)
+        lo, hi = self.kw.get("limits") or (_LIMITS_LO, _LIMITS_HI)
+        q_dnn = np.clip(self.ik.solve(T, q_seed), lo, hi)
         # Wrist roll is the free DOF of the pen task: the DNN's roll is arbitrary (it was trained on
         # uniformly random q), and feeding it back as the next seed makes roll random-walk into its
         # limit over a few hundred waypoints.  Keep the previous roll; Newton polishes the rest.
@@ -142,7 +170,7 @@ class DnnSolver:
         out = {"converged": bool(converged), "iters": int(iters),
                "pos_err_mm": float(pos_err_mm), "rot_err_deg": float(rot_err_deg),
                "q_dnn_rad": [float(x) for x in q_dnn]}
-        if (not out["converged"] or not within_limits(np.asarray(q), 1e-6)
+        if (not out["converged"] or not within_limits(np.asarray(q), 1e-6, self.kw.get("limits"))
                 or (self.elbow_stop is not None and not self.elbow_stop.ok(q))):
             # The demo must not stall on one bad DNN seed: polish from the previous waypoint instead.
             q, out2 = self.fallback.solve(T, q_seed)
@@ -168,11 +196,13 @@ def make_solver(model_dir, tool_offset_m, newton_kwargs, log=print, elbow_stop=N
     return NewtonOnlySolver(model, **newton_kwargs), model
 
 
-def within_limits(q, margin_rad=0.0):
-    return bool(np.all(q >= _LIMITS_LO + margin_rad) and np.all(q <= _LIMITS_HI - margin_rad))
+def within_limits(q, margin_rad=0.0, limits=None):
+    lo, hi = limits or (_LIMITS_LO, _LIMITS_HI)
+    return bool(np.all(q >= lo + margin_rad) and np.all(q <= hi - margin_rad))
 
 
-def solve_path(path, solver, q_start=START_Q, limit_margin_rad=1e-6, log=print, elbow_stop=None):
+def solve_path(path, solver, q_start=START_Q, limit_margin_rad=1e-6, log=print, elbow_stop=None,
+               limits=None, tilt_rad=0.0):
     """Solve every waypoint in order. Returns (accepted waypoints, rejected waypoints).
 
     A waypoint is rejected when Newton did not converge, when it leaves the URDF joint limits, or
@@ -182,7 +212,7 @@ def solve_path(path, solver, q_start=START_Q, limit_margin_rad=1e-6, log=print, 
     accepted, rejected = [], []
     t0 = time.perf_counter()
     for i, ((xyz, pen_down), t) in enumerate(zip(path, times)):
-        q, info = solver.solve(target_pose(xyz), q_prev)
+        q, info = solver.solve(target_pose(xyz, tilt_rad), q_prev)
         q = np.asarray(q, dtype=np.float64).flatten()
         row = {"index": i, "t": round(float(t), 3), "xyz": [round(float(v), 5) for v in xyz],
                "pen_down": bool(pen_down), "q_rad": [round(float(v), 6) for v in q], **info}
@@ -191,7 +221,7 @@ def solve_path(path, solver, q_start=START_Q, limit_margin_rad=1e-6, log=print, 
         reason = None
         if not info["converged"]:
             reason = "did not converge"
-        elif not within_limits(q, limit_margin_rad):
+        elif not within_limits(q, limit_margin_rad, limits):
             reason = "outside joint limits"
         elif elbow_stop is not None and not elbow_stop.ok(q):
             reason = (f"elbow bend {elbow_stop.bend_deg(q):.1f} deg exceeds the {elbow_stop.max_deg} deg "
@@ -290,11 +320,20 @@ def build_plan(args, log=print):
         raise ValueError(f"no strokes for text {args.text!r}")
     bbox = strokes_bbox(strokes)
     path = layout_strokes(strokes, args.distance_m, args.plane_z_m, args.hover_m, args.mirror)
-    newton_kwargs = {"max_iter": args.max_iter, "eps_v_mm": args.eps_v_mm, "eps_w_rad": args.eps_w_rad}
     elbow_stop = ElbowStop(getattr(args, "elbow_max_deg", None))
+    # Solve inside the range the calibrated servos can reach, not just the URDF's.
+    limits = calibrated_limits(elbow_stop.cal, elbow_stop.max_deg)
+    log("joint limits used (deg, URDF frame, from the servo tick limits): "
+        + ", ".join(f"{j} {math.degrees(lo):.0f}..{math.degrees(hi):.0f}"
+                    for j, lo, hi in zip(JOINTS, limits[0], limits[1])))
+    newton_kwargs = {"max_iter": args.max_iter, "eps_v_mm": args.eps_v_mm, "eps_w_rad": args.eps_w_rad,
+                     "limits": limits}
     solver, model = make_solver(args.model_dir, args.pen_tip_offset_m, newton_kwargs, log=log,
                                 elbow_stop=elbow_stop)
-    accepted, rejected = solve_path(path, solver, log=log, elbow_stop=elbow_stop)
+    q_start = np.clip(START_Q, limits[0], limits[1])
+    tilt_rad = math.radians(getattr(args, "pen_tilt_deg", 0.0) or 0.0)
+    accepted, rejected = solve_path(path, solver, q_start=q_start, log=log, elbow_stop=elbow_stop,
+                                    limits=limits, tilt_rad=tilt_rad)
     radial = [float(math.hypot(p[0], p[1])) for p, _ in path]
     roll = [w["q_rad"][4] for w in accepted]
     summary = {
@@ -324,10 +363,14 @@ def build_plan(args, log=print):
         "text": args.text,
         "params": {
             "distance_m": args.distance_m, "plane_z_m": args.plane_z_m, "text_height_m": args.text_height_m,
+            "pen_tilt_deg": getattr(args, "pen_tilt_deg", 0.0) or 0.0,
             "hover_m": args.hover_m, "pen_tip_offset_m": [float(v) for v in args.pen_tip_offset_m],
             "font": args.font, "max_spacing_m": args.max_spacing_m, "mirror": bool(args.mirror),
             "model_dir": args.model_dir, "start_q_rad": [float(v) for v in START_Q],
-            "newton": newton_kwargs, "joints": list(JOINTS), "frame": "URDF base_link, metres, radians",
+            "newton": {k: v for k, v in newton_kwargs.items() if k != "limits"},
+            "joint_limits_deg": {j: [round(math.degrees(lo), 2), round(math.degrees(hi), 2)]
+                                 for j, lo, hi in zip(JOINTS, limits[0], limits[1])},
+            "joints": list(JOINTS), "frame": "URDF base_link, metres, radians",
             "orientation": "tool z = -z of base (pen straight down), wrist roll held at start_q_rad[4]",
         },
         "waypoints": [{k: w[k] for k in ("t", "xyz", "pen_down", "q_rad", "converged", "iters", "pos_err_mm")}
@@ -347,6 +390,9 @@ def parse_args(argv=None):
                    help="height of the writing surface in the URDF base frame (bottom of the base = 0 = the table)")
     p.add_argument("--text_height_m", type=float, default=DEFAULT_HEIGHT_M, help="cap height")
     p.add_argument("--hover_m", type=float, default=0.01, help="pen lift between strokes")
+    p.add_argument("--pen_tilt_deg", type=float, default=0.0,
+                   help="lean the pen back toward the base by this angle from vertical (0 = vertical pen); "
+                        "30-45 keeps the arm folded so the small shoulder servo can hold it")
     p.add_argument("--pen_tip_offset_m", type=float, nargs=3, default=list(DEFAULT_PEN_TIP_OFFSET_M),
                    metavar=("X", "Y", "Z"),
                    help="pen tip in the gripper_frame_link frame; default 0 0 0.05 = a 5 cm pen protruding along the tool axis")

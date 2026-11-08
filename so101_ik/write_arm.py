@@ -375,6 +375,7 @@ def drive(controller, targets: np.ndarray, owner: np.ndarray, plan: dict, *, spe
     try:
         positions = measured(controller)
         log.write(event="start", positions=positions)
+        start_pose = {j: int(positions[j]) for j in JOINTS}
         for j in JOINTS:                                  # never the gripper
             snap = controller.torque(j, True, controller.motion_epoch)
             if snap.get("fault"):
@@ -442,6 +443,24 @@ def drive(controller, targets: np.ndarray, owner: np.ndarray, plan: dict, *, spe
         positions = measured(controller)
         log.write(event="done", positions=positions)
         out.write("\nfinished writing.\n")
+        # Park back at the pose the run started from (upright) before torque is released, so the
+        # arm is not left outstretched over the table when the motors go limp.
+        controller.set_speed("fine")
+        out.write(f"parking back at the start pose at 'fine' speed: {start_pose}\n")
+        t3 = time.monotonic()
+        while True:
+            for j, t in start_pose.items():
+                controller.target(j, t, epoch)
+            controller.heartbeat(epoch)
+            positions = measured(controller)
+            log.write(event="park", targets=start_pose, positions=positions)
+            worst = max(abs(positions[j] - start_pose[j]) for j in JOINTS)
+            out.write(f"\r  parking: worst joint {worst:4d} ticks away   ")
+            out.flush()
+            if worst <= SETTLE_TICKS or time.monotonic() - t3 > SETTLE_TIMEOUT_S:
+                break
+            time.sleep(0.25)
+        out.write("\nparked.\n")
         return True
     finally:
         stop.set()
@@ -461,6 +480,8 @@ def main(argv=None) -> int:
     p.add_argument("--speed", choices=("fine", "normal", "fast"), default="normal")
     p.add_argument("--rate_hz", type=float, default=20.0, help="target updates per second")
     p.add_argument("--start_pause_s", type=float, default=3.0, help="hold at the first hover point before the MOVE prompt")
+    p.add_argument("--countdown_s", type=float, default=0.0,
+                   help="hands-free: replace the MOVE prompts with a countdown of this many seconds (0 = prompt)")
     p.add_argument("--allow_any_start", action="store_true",
                    help=f"drive even if the arm is more than {HOME_TOLERANCE} ticks from straight up")
     p.add_argument("--i_verified_calibration", action="store_true",
@@ -542,7 +563,17 @@ def main(argv=None) -> int:
               n_waypoints=int(len(ticks)), n_steps=int(len(targets)), start_positions=states,
               peak_elbow_bend_deg=round(peak_elbow, 2))
     print("\nThe arm will move to the first hover point at 'fine' speed, hold, then write. Pen fitted, surface clear.")
-    if input("Type MOVE and press Enter to power the motors: ").strip() != "MOVE":
+    if args.countdown_s:
+        # Hands-free mode: every prompt becomes a printed countdown; Ctrl+C still stops the run.
+        def ask(prompt: str) -> str:
+            print(prompt.replace("Type MOVE and press Enter", f"starting in {args.countdown_s:.0f} s (Ctrl+C aborts)"))
+            for remaining in range(int(args.countdown_s), 0, -1):
+                print(f"  {remaining}...", flush=True)
+                time.sleep(1.0)
+            return "MOVE"
+    else:
+        ask = input
+    if ask("Type MOVE and press Enter to power the motors: ").strip() != "MOVE":
         print("Not started.")
         return 1
     from neural_reflex.arm_web import ArmController
@@ -550,7 +581,7 @@ def main(argv=None) -> int:
     code = 0
     try:
         ok = drive(controller, targets, owner, plan, speed=args.speed, rate_hz=args.rate_hz,
-                   start_pause_s=args.start_pause_s, log=log)
+                   start_pause_s=args.start_pause_s, log=log, ask=ask)
         code = 0 if ok else 1
     except KeyboardInterrupt:
         print("\nStopped: holding the arm where it is.")
@@ -565,7 +596,12 @@ def main(argv=None) -> int:
         except Exception:   # noqa: BLE001
             pass
         try:
-            input("\nSupport the arm with your hand, then press Enter to turn the motors off... ")
+            if args.countdown_s and code == 0:
+                # The run parked the arm upright, so a timed release is safe; a stopped run still waits.
+                print(f"\nParked. Motors turn off in {args.countdown_s:.0f} s; support the arm if it is not upright.")
+                time.sleep(float(args.countdown_s))
+            else:
+                input("\nSupport the arm with your hand, then press Enter to turn the motors off... ")
         finally:
             controller.close()
             log.close()

@@ -157,18 +157,26 @@ def ik_newton_refine(
     eps_w_rad: float = 0.01,
     max_step: float = 0.5,
     jacobian: str = "tool",
+    limits=None,
 ) -> tuple[np.ndarray, int, float, float, bool]:
     """Damped Newton-Raphson IK.
 
     Returns ``(q, iters, pos_err_mm, rot_err_deg, converged)``.  For
     ``task="pen"`` the reported rotation error is the angle between the current
-    and desired tool z-axes.
+    and desired tool z-axes.  ``limits`` is an optional ``(lo, hi)`` pair of
+    per-joint arrays used for clipping instead of the URDF ``JOINT_LIMITS``
+    (e.g. the physical servo range of a calibrated arm).
     """
     T_target = np.asarray(T_target, dtype=np.float64)
     q = np.asarray(q_init, dtype=np.float64).flatten().copy()
     if q.shape[0] != N_JOINTS:
         raise ValueError(f"q_init must have {N_JOINTS} entries, got {q.shape[0]}")
-    q = np.clip(q, _LIMITS_LO, _LIMITS_HI)
+    if limits is None:
+        lo, hi = _LIMITS_LO, _LIMITS_HI
+    else:
+        lo = np.asarray(limits[0], dtype=np.float64)
+        hi = np.asarray(limits[1], dtype=np.float64)
+    q = np.clip(q, lo, hi)
     eps_v = eps_v_mm * 1e-3
     n = N_JOINTS
     eye_n = np.eye(n)
@@ -191,7 +199,7 @@ def ik_newton_refine(
         if dq_norm > max_step:
             dq = dq * (max_step / dq_norm)
 
-        q = np.clip(q + dq, _LIMITS_LO, _LIMITS_HI)
+        q = np.clip(q + dq, lo, hi)
 
     T_cur = forward_kinematics(q, model)
     _, pos_err, rot_err = _task_error(T_target, T_cur, task)

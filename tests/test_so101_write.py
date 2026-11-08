@@ -16,6 +16,19 @@ from so101_ik import write_arm, write_plan
 from so101_ik.text_strokes import MAX_SPACING_M, strokes_bbox, text_to_strokes
 
 REPO = Path(__file__).resolve().parent.parent
+CAL_FILE = REPO / "config" / "so101_ik_calibration.json"
+HOME_FILE = REPO / "config" / "arm_home.json"
+AIR_FILE = REPO / "config" / "air_arm.json"
+# Every reason solve_path can give; the elbow-cap tests assert membership, not an exact count.
+REJECTION_REASONS = ("did not converge", "outside joint limits", "mechanical stop")
+
+
+def _unverified(cal):
+    """Deep copy of a calibration with every joint marked unverified (the config itself is verified)."""
+    cal = json.loads(json.dumps(cal))
+    for j in write_arm.JOINTS:
+        cal["joints"][j]["verified"] = False
+    return cal
 
 
 class TextStrokesTest(unittest.TestCase):
@@ -95,49 +108,93 @@ class WritePlanTest(unittest.TestCase):
         self.assertIn("peak tick velocity", text)
         self.assertIn("360", text)
         self.assertGreater(text.count("\n"), 60)                 # one row per waypoint
-        self.assertIn("elbow cap: 2757 ticks = home + 148 deg mechanical stop", text)
+        cal = write_arm.load_calibration(CAL_FILE)
+        elbow_max = write_arm.load_air_config(AIR_FILE)["elbow_max_deg"]
+        cap = write_arm.elbow_cap_ticks(cal, elbow_max)
+        self.assertIn(f"elbow cap: {cap} ticks = home + {elbow_max} deg mechanical stop", text)
+        fine = cal["speed_caps_ticks_per_s"]["fine"]
         self.assertRegex(text, r"peak elbow bend \d+\.\d deg")
-        self.assertIn("approach to the first hover point at 'fine' (60 ticks/s)", text)
+        self.assertIn(f"approach to the first hover point at 'fine' ({fine} ticks/s)", text)
 
     def test_plan_holds_wrist_roll_and_reports_elbow(self):
         plan = json.loads(self.out.read_text())
         s = plan["summary"]
+        elbow_max = write_arm.load_air_config(AIR_FILE)["elbow_max_deg"]
         lo, hi = s["wrist_roll_range_rad"]
         self.assertAlmostEqual(lo, hi, places=9)
         self.assertAlmostEqual(lo, write_plan.ROLL_MID_RAD, places=5)
-        self.assertEqual(s["elbow_max_deg"], 148)
-        self.assertLess(s["peak_elbow_bend_deg"], 148)
+        self.assertEqual(s["elbow_max_deg"], elbow_max)
+        self.assertLess(s["peak_elbow_bend_deg"], elbow_max)
         self.assertGreater(s["peak_elbow_bend_deg"], 0)
         self.assertIn("peak elbow bend", self.stdout)
         self.assertIn("wrist roll", self.stdout)
 
+    def test_plan_solved_inside_calibrated_limits(self):
+        """The plan records the servo-derived joint limits it was solved in and every waypoint obeys them."""
+        plan = json.loads(self.out.read_text())
+        cal = write_arm.load_calibration(CAL_FILE)
+        elbow_max = write_arm.load_air_config(AIR_FILE)["elbow_max_deg"]
+        lo, hi = write_plan.calibrated_limits(cal, elbow_max)
+        recorded = plan["params"]["joint_limits_deg"]
+        self.assertNotIn("limits", plan["params"]["newton"])
+        for i, j in enumerate(write_arm.JOINTS):
+            self.assertAlmostEqual(recorded[j][0], np.degrees(lo[i]), places=2, msg=j)
+            self.assertAlmostEqual(recorded[j][1], np.degrees(hi[i]), places=2, msg=j)
+        q = np.array([w["q_rad"] for w in plan["waypoints"]])
+        self.assertTrue(np.all(q >= lo - 1e-9) and np.all(q <= hi + 1e-9))
+        # and therefore the tick conversion never needs to clamp
+        _, clamp, _ = write_arm.plan_to_ticks(plan, cal, elbow_max)
+        self.assertEqual(write_arm.check_clamping(clamp, cal), [])
+        self.assertIn("joint limits used", self.stdout)
+
     def test_plan_rejects_elbow_beyond_mechanical_stop(self):
         plan = json.loads(self.out.read_text())
         peak = plan["summary"]["peak_elbow_bend_deg"]
+        cap_deg = peak - 5.0            # below the plan's own peak bend, so some waypoints must fall out
         with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "p.json"
             buf = io.StringIO()
             with redirect_stdout(buf):
-                code = write_plan.main(["--text", "hi", "--distance_m", "0.20", "--elbow_max_deg", str(peak - 5),
-                                        "--out", str(Path(d) / "p.json"), "--preview", ""])
+                code = write_plan.main(["--text", "hi", "--distance_m", "0.20", "--elbow_max_deg", str(cap_deg),
+                                        "--out", str(out), "--preview", ""])
+            capped = json.loads(out.read_text())
         self.assertEqual(code, 2)
         self.assertIn("REJECTED", buf.getvalue())
-        self.assertIn("mechanical stop", buf.getvalue())
+        s = capped["summary"]
+        self.assertEqual(s["elbow_max_deg"], cap_deg)
+        self.assertGreater(s["n_rejected"], 0)
+        self.assertEqual(s["n_accepted"] + s["n_rejected"], s["n_waypoints"])
+        self.assertEqual(len(s["rejected"]), s["n_rejected"])
+        for r in s["rejected"]:
+            self.assertTrue(any(reason in r["reason"] for reason in REJECTION_REASONS), r["reason"])
+        first = s["rejected"][0]
+        self.assertIn(f"#{first['index']:4d}", buf.getvalue())      # listed in the REJECTED block
+        # whatever survived respects the tighter stop, and the solver's elbow limit was lowered to it
+        cal = write_arm.load_calibration(CAL_FILE)
+        if s["n_accepted"]:
+            self.assertLessEqual(s["peak_elbow_bend_deg"], cap_deg + 1e-6)
+        _, hi = write_plan.calibrated_limits(cal, cap_deg)
+        self.assertAlmostEqual(capped["params"]["joint_limits_deg"]["elbow_flex"][1],
+                               np.degrees(hi[write_plan.ELBOW_INDEX]), places=2)
+        self.assertLessEqual(float(write_arm.elbow_bend_deg(hi[write_plan.ELBOW_INDEX], cal)), cap_deg + 1e-9)
 
 
 class TickConversionTest(unittest.TestCase):
     def setUp(self):
-        self.cal = write_arm.load_calibration(REPO / "config" / "so101_ik_calibration.json")
+        self.cal = write_arm.load_calibration(CAL_FILE)
 
     def test_calibration_shape(self):
-        home = json.loads((REPO / "config" / "arm_home.json").read_text())["positions"]
+        home = write_arm.load_home(HOME_FILE)
         robot_map = json.loads((REPO / "config" / "robot_map.json").read_text())
         for j in write_arm.JOINTS:
             c = self.cal["joints"][j]
             self.assertEqual(c["home_tick"], home[j])
             self.assertEqual(list(c["limits_ticks"]), list(robot_map["limits"][j]))
             self.assertIn(c["sign"], (1, -1))
-            self.assertFalse(c["verified"])
+            self.assertIsInstance(c["verified"], bool)
             self.assertTrue(c["how_to_verify"])
+            lo, hi = c["limits_ticks"]
+            self.assertTrue(lo < c["home_tick"] < hi, j)
         self.assertNotIn("gripper", self.cal["joints"])
 
     def test_roundtrip(self):
@@ -158,8 +215,12 @@ class TickConversionTest(unittest.TestCase):
         self.assertGreater(write_arm.q_to_ticks(q, self.cal)[1], c["home_tick"])
 
     def test_refuses_out_of_range(self):
-        plan = {"text": "x", "waypoints": [{"t": 0, "xyz": [0, 0, 0], "pen_down": False,
-                                            "q_rad": [1.9, 0, 0, 0, 0]}]}
+        # a pan 100 ticks past the (margin-reduced) motor limit, whatever home is today
+        pan_hi = write_arm.tick_limits(self.cal)["shoulder_pan"][1]
+        q = write_arm.ticks_to_q([pan_hi + 100, 0, 0, 0, 0], self.cal)
+        q_rad = [float(q[0])] + [0, 0, 0, 0]
+        self.assertGreater(write_arm.q_to_ticks(q_rad, self.cal)[0], pan_hi + self.cal["max_clamp_ticks"])
+        plan = {"text": "x", "waypoints": [{"t": 0, "xyz": [0, 0, 0], "pen_down": False, "q_rad": q_rad}]}
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "p.json"
             path.write_text(json.dumps(plan))
@@ -180,14 +241,15 @@ class TickConversionTest(unittest.TestCase):
 
 
 class SimulatedDriveTest(unittest.TestCase):
-    """drive() against the simulated bus: torque on the five joints only, targets logged, gripper untouched."""
+    """drive() against the simulated bus: torque on the five joints only, targets logged, gripper untouched,
+    and the run ends parked back at the pose it started from."""
 
     def test_drive_simulated(self):
         from neural_reflex.arm_web import ArmController
         from neural_reflex.leader_arm import JOINTS as ALL_JOINTS
         from tests.helpers import SimBus
 
-        cal = write_arm.load_calibration(REPO / "config" / "so101_ik_calibration.json")
+        cal = write_arm.load_calibration(CAL_FILE)
         robot_map = json.loads((REPO / "config" / "robot_map.json").read_text())
         strokes_plan = write_plan.build_plan(write_plan.parse_args(
             ["--text", "i", "--distance_m", "0.20", "--out", "unused", "--preview", ""]), log=lambda *a: None)[0]
@@ -215,18 +277,31 @@ class SimulatedDriveTest(unittest.TestCase):
         self.assertEqual(len(steps), len(targets))
         self.assertTrue(all("targets" in r for r in steps))
         self.assertTrue(any(r.get("positions") for r in steps))
-        final = {j: bus.values[j]["Present_Position"] for j in write_arm.JOINTS}
+        text = buf.getvalue()
+        # the last schedule row was reached before parking began
+        done = [r for r in rows if r.get("event") == "done"]
+        self.assertEqual(len(done), 1)
         for i, j in enumerate(write_arm.JOINTS):
-            self.assertEqual(final[j], int(targets[-1][i]), j)
-        self.assertIn("finished writing", buf.getvalue())
-        self.assertEqual(controller.speed, "fast")                              # switched after MOVE
-        self.assertIn("at 'fine' speed", buf.getvalue())
-        self.assertIn("writing at 'fast' speed", buf.getvalue())
+            self.assertEqual(done[0]["positions"][j], int(targets[-1][i]), j)
+        self.assertIn("finished writing", text)
+        self.assertIn("writing at 'fast' speed", text)
+        self.assertIn("moving to the first hover point at 'fine' speed", text)
+        # ...and the run ends parked back at the start pose, at 'fine' speed
+        self.assertIn("parking back at the start pose", text)
+        self.assertIn("parked.", text)
+        self.assertEqual(controller.speed, "fine")
+        parks = [r for r in rows if r.get("event") == "park"]
+        self.assertGreater(len(parks), 0)
+        self.assertEqual(parks[-1]["targets"], {j: start[j] for j in write_arm.JOINTS})
+        final = {j: bus.values[j]["Present_Position"] for j in write_arm.JOINTS}
+        for j in write_arm.JOINTS:
+            self.assertLessEqual(abs(final[j] - start[j]), write_arm.SETTLE_TICKS, (j, final[j], start[j]))
+        self.assertEqual(bus.values["gripper"]["Present_Position"], start["gripper"])
 
 
 def _sim_setup(n_waypoints=12):
     """(plan, cal, ticks, targets, owner, robot_map) for a short Newton-only plan."""
-    cal = write_arm.load_calibration(REPO / "config" / "so101_ik_calibration.json")
+    cal = write_arm.load_calibration(CAL_FILE)
     robot_map = json.loads((REPO / "config" / "robot_map.json").read_text())
     plan = write_plan.build_plan(write_plan.parse_args(
         ["--text", "i", "--distance_m", "0.20", "--out", "unused", "--preview", ""]), log=lambda *a: None)[0]
@@ -319,7 +394,7 @@ class ArmCheckTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.plan, cls.cal, cls.ticks, cls.targets, cls.owner, cls.robot_map = _sim_setup()
-        cls.home = write_arm.load_home(REPO / "config" / "arm_home.json")
+        cls.home = write_arm.load_home(HOME_FILE)
         cls.home_ticks = [cls.home[j] for j in write_arm.JOINTS]
 
     def states(self, **overrides):
@@ -329,9 +404,9 @@ class ArmCheckTest(unittest.TestCase):
         self.assertTrue(all(v["Torque_Enable"] == 0 for v in bus.values.values()))
         return states
 
-    def check(self, states, **kw):
+    def check(self, states, cal=None, **kw):
         buf = io.StringIO()
-        problems = write_arm.arm_check(states, self.plan, self.cal, self.home, self.targets[0],
+        problems = write_arm.arm_check(states, self.plan, cal or self.cal, self.home, self.targets[0],
                                        fine_cap=60.0, out=buf, **kw)
         return problems, buf.getvalue()
 
@@ -343,15 +418,30 @@ class ArmCheckTest(unittest.TestCase):
             self.assertIn(self.cal["joints"][j]["how_to_verify"][:40], text)
         self.assertIn("FK pen tip", text)
         self.assertIn("tool z-axis in base frame (-0.038, +0.000, +0.999)", text)   # straight up
-        self.assertIn("within 150 ticks of straight up", text)
+        self.assertIn(f"within {write_arm.HOME_TOLERANCE} ticks of straight up", text)
         self.assertIn("simulated approach to the first hover point at 'fine' (60 ticks/s)", text)
-        self.assertRegex(text, r"shoulder_pan\s+2042\s+off\s+0\.000")
-        # only the unverified calibration blocks a start from home
+        # the table reads back the home ticks (d_home +0) and the pan's q_home of 0 rad
+        pan = self.cal["joints"]["shoulder_pan"]
+        self.assertEqual(pan["q_home_rad"], 0.0)
+        self.assertRegex(text, rf"shoulder_pan\s+{self.home['shoulder_pan']}\s+off\s+0\.000")
+        for j in write_arm.JOINTS:
+            self.assertRegex(text, rf"{j}\s+{self.home[j]}\s+off\s+\S+\s+\S+\s+{self.home[j]}\s+\+0\s")
+        # the shipped calibration is fully verified, so a start from home has nothing to refuse
+        unverified = [j for j in write_arm.JOINTS if not self.cal["joints"][j].get("verified")]
+        self.assertEqual(unverified, [], "config/so101_ik_calibration.json has unverified joints")
+        self.assertEqual(problems, [])
+        self.assertRegex(text, r"\[x\] shoulder_pan")
+        # an unverified calibration is the only thing that blocks a start from home...
+        problems, text = self.check(self.states(), cal=_unverified(self.cal))
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("calibration not verified", problems[0])
         for j in write_arm.JOINTS:
             self.assertIn(j, problems[0])
-        self.assertEqual(self.check(self.states(), i_verified_calibration=True)[0], [])
+        self.assertRegex(text, r"\[ \] shoulder_pan")
+        # ...and --i_verified_calibration downgrades it to a warning
+        problems, text = self.check(self.states(), cal=_unverified(self.cal), i_verified_calibration=True)
+        self.assertEqual(problems, [])
+        self.assertIn("WARNING (--i_verified_calibration)", text)
 
     def test_refuses_start_away_from_home(self):
         far = self.states(elbow_flex=self.home["elbow_flex"] + 151)
@@ -394,34 +484,51 @@ class ArmCheckTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "p.json"
             path.write_text(json.dumps(self.plan))
+            unverified = Path(d) / "unverified_cal.json"
+            unverified.write_text(json.dumps(_unverified(self.cal)))
             make_bus = lambda port: _sim_bus(self.home_ticks, self.robot_map)
             with mock.patch("neural_reflex.leader_arm.make_bus", make_bus), \
                     mock.patch("builtins.input", side_effect=AssertionError("must refuse before the MOVE prompt")):
+                # an unverified calibration fails the check and refuses to execute...
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    code = write_arm.main(["--plan", str(path), "--check", "--port", "sim"])
+                    code = write_arm.main(["--plan", str(path), "--check", "--port", "sim",
+                                           "--calibration", str(unverified)])
                 self.assertEqual(code, 2, buf.getvalue())
                 self.assertIn("ARM CHECK", buf.getvalue())
                 self.assertIn("CHECK FAILED", buf.getvalue())
                 self.assertIn("calibration not verified", buf.getvalue())
+                self.assertIn("WARNING: tick direction/offset NOT verified", buf.getvalue())
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    code = write_arm.main(["--plan", str(path), "--check", "--port", "sim", "--i_verified_calibration"])
+                    code = write_arm.main(["--plan", str(path), "--execute", "--port", "sim",
+                                           "--calibration", str(unverified)])
+                self.assertEqual(code, 2, buf.getvalue())
+                self.assertIn("REFUSED to execute", buf.getvalue())
+                self.assertIn("calibration not verified", buf.getvalue())
+                # ...unless the operator vouches for it
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    code = write_arm.main(["--plan", str(path), "--check", "--port", "sim",
+                                           "--calibration", str(unverified), "--i_verified_calibration"])
                 self.assertEqual(code, 0, buf.getvalue())
                 self.assertIn("CHECK PASSED", buf.getvalue())
                 self.assertIn("Nothing moved", buf.getvalue())
+                # the shipped calibration is verified: the check passes from home as is
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    code = write_arm.main(["--plan", str(path), "--execute", "--port", "sim"])
-                self.assertEqual(code, 2, buf.getvalue())
-                self.assertIn("REFUSED to execute", buf.getvalue())
+                    code = write_arm.main(["--plan", str(path), "--check", "--port", "sim"])
+                self.assertEqual(code, 0, buf.getvalue())
+                self.assertIn("CHECK PASSED", buf.getvalue())
+                self.assertNotIn("NOT verified", buf.getvalue())
                 far = lambda port: _sim_bus(self.home_ticks, self.robot_map, wrist_flex=self.home["wrist_flex"] - 300)
             with mock.patch("neural_reflex.leader_arm.make_bus", far), \
                     mock.patch("builtins.input", side_effect=AssertionError("must refuse before the MOVE prompt")):
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    code = write_arm.main(["--plan", str(path), "--execute", "--port", "sim", "--i_verified_calibration"])
+                    code = write_arm.main(["--plan", str(path), "--execute", "--port", "sim"])
                 self.assertEqual(code, 2, buf.getvalue())
+                self.assertIn("REFUSED to execute", buf.getvalue())
                 self.assertIn("not straight up", buf.getvalue())
                 self.assertIn("wrist_flex -300 ticks", buf.getvalue())
 
@@ -430,25 +537,40 @@ class ElbowCapAndSpeedCapTest(unittest.TestCase):
     """MAJOR 3 / MINOR 5."""
 
     def setUp(self):
-        self.cal = write_arm.load_calibration(REPO / "config" / "so101_ik_calibration.json")
+        self.cal = write_arm.load_calibration(CAL_FILE)
+        self.elbow_max = write_arm.load_air_config(AIR_FILE)["elbow_max_deg"]
+        c = self.cal["joints"]["elbow_flex"]
+        self.motor_hi = int(c["limits_ticks"][1]) - int(self.cal["margin_ticks"])
 
     def test_elbow_cap_from_air_arm_config(self):
-        air = write_arm.load_air_config(REPO / "config" / "air_arm.json")
-        self.assertEqual(air["elbow_max_deg"], 148)
-        cap = write_arm.elbow_cap_ticks(self.cal, air["elbow_max_deg"])
-        self.assertEqual(cap, int(1074 + 148 * 4096 / 360))                # 2757
+        c = self.cal["joints"]["elbow_flex"]
+        self.assertGreater(self.elbow_max, 90)
+        self.assertLess(self.elbow_max, 180)
+        cap = write_arm.elbow_cap_ticks(self.cal, self.elbow_max)
+        self.assertEqual(cap, int(c["home_tick"] + self.elbow_max * 4096 / 360))
+        self.assertLess(cap, self.motor_hi, "the mechanical stop should bind before the motor limit")
         self.assertEqual(write_arm.tick_limits(self.cal)["elbow_flex"][1], cap)
         self.assertEqual(write_arm.tick_limits(self.cal, None)["elbow_flex"][1], cap)
-        self.assertEqual(write_arm.tick_limits(self.cal, 200)["elbow_flex"][1], 3095 - 60)   # motor limit wins
+        # a stop past the motor range: the motor limit wins
+        past_motor = (self.motor_hi - c["home_tick"]) * 360 / 4096 + 10
+        self.assertEqual(write_arm.tick_limits(self.cal, past_motor)["elbow_flex"][1], self.motor_hi)
         # bend of exactly elbow_max_deg maps to the cap tick, through the calibration sign
-        q_cap = self.cal["joints"]["elbow_flex"]["q_home_rad"] + self.cal["joints"]["elbow_flex"]["sign"] * np.radians(148)
-        self.assertAlmostEqual(float(write_arm.elbow_bend_deg(q_cap, self.cal)), 148.0, places=9)
-        self.assertAlmostEqual(write_arm.q_to_ticks([0, 0, q_cap, 0, 0], self.cal)[2], 1074 + 148 * 4096 / 360, places=6)
+        q_cap = c["q_home_rad"] + c["sign"] * np.radians(self.elbow_max)
+        self.assertAlmostEqual(float(write_arm.elbow_bend_deg(q_cap, self.cal)), float(self.elbow_max), places=9)
+        self.assertAlmostEqual(write_arm.q_to_ticks([0, 0, q_cap, 0, 0], self.cal)[2],
+                               c["home_tick"] + self.elbow_max * 4096 / 360, places=6)
+        # calibrated_limits carries the same cap into the solver's joint limits
+        _, hi = write_plan.calibrated_limits(self.cal, self.elbow_max)
+        self.assertAlmostEqual(write_arm.q_to_ticks([0, 0, hi[write_plan.ELBOW_INDEX], 0, 0], self.cal)[2], cap, places=6)
 
     def test_plan_beyond_elbow_stop_is_refused(self):
         c = self.cal["joints"]["elbow_flex"]
-        q_elbow = c["q_home_rad"] + c["sign"] * np.radians(160)          # 160 deg bend: inside the motor range
-        self.assertLess(write_arm.q_to_ticks([0, 0, q_elbow, 0, 0], self.cal)[2], 3095 - 60)
+        # a bend past the stop but inside the motor range (halfway between the two)
+        motor_deg = (self.motor_hi - c["home_tick"]) * 360 / 4096
+        bend = round((self.elbow_max + motor_deg) / 2.0, 1)
+        self.assertGreater(bend, self.elbow_max)
+        q_elbow = c["q_home_rad"] + c["sign"] * np.radians(bend)
+        self.assertLess(write_arm.q_to_ticks([0, 0, q_elbow, 0, 0], self.cal)[2], self.motor_hi)
         plan = {"text": "x", "waypoints": [{"t": 0, "xyz": [0, 0, 0], "pen_down": False,
                                             "q_rad": [0, 0, float(q_elbow), 0, 0]}]}
         with tempfile.TemporaryDirectory() as d:
@@ -460,13 +582,14 @@ class ElbowCapAndSpeedCapTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("REFUSED", buf.getvalue())
         self.assertIn("elbow_flex", buf.getvalue())
-        self.assertIn("peak elbow bend 160.0 deg", buf.getvalue())
+        self.assertIn(f"peak elbow bend {bend:.1f} deg", buf.getvalue())
         stop = write_plan.ElbowStop(cal=self.cal)
+        self.assertEqual(stop.max_deg, self.elbow_max)
         self.assertFalse(stop.ok(plan["waypoints"][0]["q_rad"]))
-        self.assertTrue(stop.ok([0, 0, c["q_home_rad"] + c["sign"] * np.radians(147), 0, 0]))
+        self.assertTrue(stop.ok([0, 0, c["q_home_rad"] + c["sign"] * np.radians(self.elbow_max - 1), 0, 0]))
 
     def test_speed_caps_above_hard_cap_are_rejected(self):
-        cal = json.loads((REPO / "config" / "so101_ik_calibration.json").read_text())
+        cal = json.loads(CAL_FILE.read_text())
         cal["speed_caps_ticks_per_s"]["fast"] = write_arm.HARD_CAP_TICKS_PER_S + 1
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "cal.json"

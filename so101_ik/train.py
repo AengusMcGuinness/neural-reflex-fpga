@@ -34,6 +34,7 @@ import json
 import os
 import time
 import pickle
+import signal
 
 import matplotlib
 matplotlib.use("Agg")
@@ -176,6 +177,18 @@ def iterate_batches(X: torch.Tensor, Y: torch.Tensor, batch_size: int,
 # Training
 # ============================================================================
 
+def save_checkpoint(out_dir, state_dict, pose_scaler, seed_scaler, history):
+    """Write the best weights, both scalers and the history so far to out_dir."""
+    os.makedirs(out_dir, exist_ok=True)
+    torch.save(state_dict, os.path.join(out_dir, "model_best.pt"))
+    with open(os.path.join(out_dir, "pose_scaler.pkl"), "wb") as f:
+        pickle.dump(pose_scaler, f)
+    with open(os.path.join(out_dir, "seed_scaler.pkl"), "wb") as f:
+        pickle.dump(seed_scaler, f)
+    pd.DataFrame(history).to_csv(
+        os.path.join(out_dir, "training_history.csv"), index=False)
+
+
 def train(args):
     t_wall0 = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -251,6 +264,20 @@ def train(args):
     print(f"  Patience: {args.patience}  |  Grad clip: {args.grad_clip}")
     print("-" * 80)
 
+    # First Ctrl+C finishes the current epoch and then saves the best model;
+    # a second Ctrl+C interrupts immediately as usual.
+    stop_requested = False
+
+    def request_stop(signum, frame):
+        nonlocal stop_requested
+        if stop_requested:
+            raise KeyboardInterrupt
+        stop_requested = True
+        print("\nStop requested; finishing this epoch and saving the best model...",
+              flush=True)
+
+    previous_handler = signal.signal(signal.SIGINT, request_stop)
+
     epochs_run = 0
     for epoch in range(1, args.epochs + 1):
         epochs_run = epoch
@@ -319,6 +346,8 @@ def train(args):
                           for k, v in model.state_dict().items()}
             patience_counter = 0
             improved = " *"
+            # Checkpoint every improvement so a stopped run still leaves a usable model.
+            save_checkpoint(args.out_dir, best_state, pose_scaler, seed_scaler, history)
         else:
             patience_counter += 1
 
@@ -331,6 +360,11 @@ def train(args):
         if patience_counter >= args.patience:
             print(f"\nEarly stopping at epoch {epoch}")
             break
+        if stop_requested:
+            print(f"\nStopped by request after epoch {epoch}")
+            break
+
+    signal.signal(signal.SIGINT, previous_handler)
 
     # Restore best model
     if best_state is not None:
@@ -339,15 +373,7 @@ def train(args):
 
     # --- Save ---
     out_dir = args.out_dir
-    os.makedirs(out_dir, exist_ok=True)
-
-    torch.save(model.state_dict(), os.path.join(out_dir, "model_best.pt"))
-    with open(os.path.join(out_dir, "pose_scaler.pkl"), "wb") as f:
-        pickle.dump(pose_scaler, f)
-    with open(os.path.join(out_dir, "seed_scaler.pkl"), "wb") as f:
-        pickle.dump(seed_scaler, f)
-    pd.DataFrame(history).to_csv(
-        os.path.join(out_dir, "training_history.csv"), index=False)
+    save_checkpoint(out_dir, model.state_dict(), pose_scaler, seed_scaler, history)
 
     # Save test indices for evaluation (indices into the loaded/subset arrays)
     np.save(os.path.join(out_dir, "test_indices.npy"), idx_te)

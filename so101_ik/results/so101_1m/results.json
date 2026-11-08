@@ -1,0 +1,112 @@
+{
+  "data": "/home/dandi/neural-reflex-fpga/data/so101_ik/so101_seed_1m.npz",
+  "samples_used": 1000000,
+  "split": {
+    "train": 800000,
+    "val": 100000,
+    "test": 100000
+  },
+  "epochs_run": 150,
+  "best_epoch": 149,
+  "best_val_loss": 0.0013980163891986013,
+  "best_val_mae_rad": 0.02226056531071663,
+  "best_val_mae_deg": 1.2754364418793889,
+  "test_mae_rad": 0.022232821211218834,
+  "test_mae_deg": 1.2738468220717742,
+  "test_per_joint_mae_rad": [
+    0.006991134025156498,
+    0.027781695127487183,
+    0.04358478635549545,
+    0.025643697008490562,
+    0.007162570953369141
+  ],
+  "test_per_joint_mae_deg": [
+    0.40056246519088745,
+    1.5917737483978271,
+    2.4972240924835205,
+    1.4692754745483398,
+    0.4103850722312927
+  ],
+  "test_pct_below_1deg": 76.63600000000001,
+  "test_pct_below_5deg": 93.5098,
+  "test_pct_below_10deg": 97.7496,
+  "train_time_s": 4424.876120090485,
+  "wall_time_s": 4430.302243471146,
+  "device": "cpu",
+  "hyperparams": {
+    "epochs": 150,
+    "batch_size": 2048,
+    "lr": 0.001,
+    "patience": 20,
+    "grad_clip": 1.0,
+    "seed": 42,
+    "max_samples": null
+  },
+  "dataset_meta": {
+    "robot": "SO-101 (so101_new_calib.urdf)",
+    "num_samples": 1000000,
+    "seed_noise_rad": 0.5,
+    "rng_seed": 42,
+    "batch_size": 100000,
+    "tool_offset_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "joints": [
+      "shoulder_pan",
+      "shoulder_lift",
+      "elbow_flex",
+      "wrist_flex",
+      "wrist_roll"
+    ],
+    "joint_limits": [
+      [
+        -1.91986,
+        1.91986
+      ],
+      [
+        -1.74533,
+        1.74533
+      ],
+      [
+        -1.69,
+        1.69
+      ],
+      [
+        -1.65806,
+        1.65806
+      ],
+      [
+        -2.74385,
+        2.84121
+      ]
+    ],
+    "pose9d_cols": [
+      "x",
+      "y",
+      "z",
+      "r6d_0",
+      "r6d_1",
+      "r6d_2",
+      "r6d_3",
+      "r6d_4",
+      "r6d_5"
+    ],
+    "seed_cols": [
+      "seed_q1",
+      "seed_q2",
+      "seed_q3",
+      "seed_q4",
+      "seed_q5"
+    ],
+    "q_cols": [
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5"
+    ],
+    "generated_s": 1.6865465641021729
+  }
+}
