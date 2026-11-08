@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correlation Report</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif;
+    --bg: #fafafa; --text: #111; --muted: #888; --line: #e5e5e5; --hot: 234, 88, 12; --warn: #c2410c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --text: #eee; --muted: #777; --line: #222; --hot: 251, 146, 60; --warn: #fb923c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 600; }
+  h2 { margin: 32px 0 6px; font-size: 1rem; font-weight: 600; }
+  h3 { margin: 18px 0 6px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+  .muted { color: var(--muted); font-size: .85rem; } .warn { color: var(--warn); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; min-width: 100%; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; } th { color: var(--muted); font-weight: 500; }
+  td.cell { text-align: center; min-width: 58px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 24px; margin: 10px 0; font-size: .88rem; }
+  .facts b { display: block; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Correlation report</h1>
+  <div class="muted" id="intro"></div>
+  <h2>Across all blocks</h2>
+  <div class="scroll"><table id="summary"></table></div>
+  <p class="muted">|r| is the strength of the straight-line relationship (0 none, 1 perfect), averaged over blocks.
+    Band tilt = the band orientation axis that best follows that signal. Grip strength is computed from EMG, so its EMG number is circular.</p>
+  <div id="blocks"></div>
+</main>
+<script>
+"use strict";
+const D = {"blocks":[{"block":"arm-reach","side":"right","seconds":132.98000012384728,"timing":{"camera_lag_ms":-20.0,"match_at_lag":0.258851935898916,"match_at_zero":0.25670343712526383},"emg":{"shoulder_lift":[-0.3170430890828422,-0.10243809065494397,-0.1919517152494465,-0.22705859743584586,-0.15848043311206908,-0.05164782617350307,-0.19912128956322167,-0.12060706720896733],"elbow_flex":[0.28718752805887804,0.13741752454156098,0.18804725458454571,0.2994291183590569,0.20094125772809548,0.06613501375672992,0.2738538481959909,0.16570595898381804],"wrist_flex":[-0.03852231349422204,-0.06103377222809121,-0.042798104418528236,-0.0027290611472064784,0.026048167823986234,0.0029973479682155464,-0.04587445528297319,-0.02978788303189485],"shoulder_pan":[0.255665706435541,0.20235831147016883,0.22541243980410547,0.36484881876507397,0.2954164285188176,0.18523118966542507,0.3387603132639539,0.24721847883151526],"wrist_roll":[0.21290541017363154,0.30534086722617093,0.07871590234748066,0.38817441720344037,0.20202398508727448,0.17458595680385122,0.2535118858973108,0.2854156490990755],"gripper":[0.8725683738135231,0.26870722911751,0.604012281211479,0.41389590389119774,0.3291651248265936,0.2508782914638712,0.4238704306903904,0.21954297343919463]},"motion":{"shoulder_lift":{"best_abs_r":0.7015660849549875,"axis":8},"elbow_flex":{"best_abs_r":0.7271290764811056,"axis":3},"wrist_flex":{"best_abs_r":0.5223401355511829,"axis":7},"shoulder_pan":{"best_abs_r":0.5072849003340529,"axis":8},"wrist_roll":{"best_abs_r":0.4213138066800333,"axis":6},"gripper":{"best_abs_r":0.4013309225152794,"axis":8}},"coverage":[{"step":"ready","frames":136,"band_arm_visible":136,"shoulder_lift":[4.968063713620184,40.59455362867138],"elbow_flex":[15.413643907651501,65.89334914578083]},{"step":"sync","frames":180,"band_arm_visible":180,"shoulder_lift":[5.4868641205318145,16.291146094674776],"elbow_flex":[17.37901315962775,53.07421954418415]},{"step":"rest","frames":120,"band_arm_visible":120,"shoulder_lift":[5.114248369648884,7.713498496717962],"elbow_flex":[36.67827611566638,50.97557729521709]},{"step":"lift_forward","frames":597,"band_arm_visible":597,"shoulder_lift":[5.197097342980627,99.28338822752244],"elbow_flex":[18.663801787161045,47.4433090883149]},{"step":"sweep_side","frames":600,"band_arm_visible":600,"shoulder_lift":[22.356171746047742,100.77951232859978],"elbow_flex":[23.40489990401523,43.633937893143255]},{"step":"elbow","frames":599,"band_arm_visible":599,"shoulder_lift":[7.438202337469652,72.2331914599209],"elbow_flex":[25.746362286816048,104.8475578692857]},{"step":"wrist_flex","frames":450,"band_arm_visible":450,"shoulder_lift":[2.3495523013789628,14.157434963131003],"elbow_flex":[37.85380963921259,101.50738212737754]},{"step":"wrist_roll","frames":450,"band_arm_visible":450,"shoulder_lift":[1.8920399108658557,13.961319023112786],"elbow_flex":[59.450501798446446,91.15871303932471]},{"step":"free","frames":600,"band_arm_visible":600,"shoulder_lift":[3.8299583179761942,82.49353195187248],"elbow_flex":[17.67189794223996,98.10047982448062]},{"step":"home","frames":150,"band_arm_visible":150,"shoulder_lift":[4.79507320713368,44.873066334016755],"elbow_flex":[18.39110757594129,108.42438779679793]},{"step":"rest_end","frames":90,"band_arm_visible":90,"shoulder_lift":[15.839538050234715,156.82754047456132],"elbow_flex":[29.549867210172824,44.19495947750756]}],"pan_defined_pct":47.29323308270676}],"summary":{"shoulder_lift":{"best_emg_channel":1,"best_emg_abs_r":0.3170430890828422,"band_tilt_abs_r":0.7015660849549875,"circular":false},"elbow_flex":{"best_emg_channel":4,"best_emg_abs_r":0.2994291183590569,"band_tilt_abs_r":0.7271290764811056,"circular":false},"wrist_flex":{"best_emg_channel":2,"best_emg_abs_r":0.06103377222809121,"band_tilt_abs_r":0.5223401355511829,"circular":false},"shoulder_pan":{"best_emg_channel":4,"best_emg_abs_r":0.36484881876507397,"band_tilt_abs_r":0.5072849003340529,"circular":false},"wrist_roll":{"best_emg_channel":4,"best_emg_abs_r":0.38817441720344037,"band_tilt_abs_r":0.4213138066800333,"circular":false},"gripper":{"best_emg_channel":1,"best_emg_abs_r":0.8725683738135231,"band_tilt_abs_r":0.4013309225152794,"circular":true}},"signals":["shoulder_lift","elbow_flex","wrist_flex","shoulder_pan","wrist_roll","gripper"]};
+const pretty = s => s.replace("_", " ");
+const fmt = v => v === null || v === undefined ? "—" : v.toFixed(2);
+const heat = v => v === null ? "" : `background: rgba(var(--hot), ${Math.min(1, Math.abs(v) / 0.8).toFixed(2)})`;
+document.getElementById("intro").textContent =
+  `${D.blocks.length} block${D.blocks.length > 1 ? "s" : ""}: ${D.blocks.map(b => b.block).join(", ")}`;
+document.getElementById("summary").innerHTML =
+  `<tr><th>Signal</th><th>Best EMG channel</th><th>EMG |r|</th><th>Band tilt |r|</th></tr>` +
+  D.signals.map(s => { const x = D.summary[s];
+    return `<tr><td>${pretty(s)}${x.circular ? ' <span class="muted">(circular)</span>' : ""}</td>
+      <td>${x.best_emg_channel ? "ch" + x.best_emg_channel : "—"}</td>
+      <td class="cell" style="${heat(x.best_emg_abs_r)}">${fmt(x.best_emg_abs_r)}</td>
+      <td class="cell" style="${heat(x.band_tilt_abs_r)}">${fmt(x.band_tilt_abs_r)}</td></tr>`; }).join("");
+
+const out = document.getElementById("blocks");
+for (const b of D.blocks) {
+  const sec = document.createElement("section");
+  const visible = b.coverage.reduce((a, c) => a + c.band_arm_visible, 0), frames = b.coverage.reduce((a, c) => a + c.frames, 0);
+  const lagOk = Math.abs(b.timing.camera_lag_ms) <= 100;
+  sec.innerHTML = `<h2>${b.block}</h2>
+    <div class="facts">
+      <div><b>${b.seconds.toFixed(0)} s</b><span class="muted">recorded</span></div>
+      <div><b>${(100 * visible / Math.max(frames, 1)).toFixed(0)}%</b><span class="muted">band arm ("${b.side}") visible</span></div>
+      <div><b class="${lagOk ? "" : "warn"}">${b.timing.camera_lag_ms >= 0 ? "+" : ""}${b.timing.camera_lag_ms.toFixed(0)} ms</b><span class="muted">camera vs band timing</span></div>
+      <div><b>${b.pan_defined_pct.toFixed(0)}%</b><span class="muted">time base rotation defined</span></div>
+    </div>
+    <h3>EMG channel activity vs each signal (r)</h3>
+    <div class="scroll"><table><tr><th>Signal</th>${[1,2,3,4,5,6,7,8].map(c => `<th>ch${c}</th>`).join("")}<th>Band tilt |r|</th></tr>
+    ${D.signals.map(s => `<tr><td>${pretty(s)}</td>${b.emg[s].map(v => `<td class="cell" style="${heat(v)}">${fmt(v)}</td>`).join("")}
+      <td class="cell" style="${heat(b.motion[s].best_abs_r)}">${fmt(b.motion[s].best_abs_r)}</td></tr>`).join("")}</table></div>
+    <h3>Coverage per protocol step</h3>
+    <div class="scroll"><table><tr><th>Step</th><th>Frames</th><th>Arm visible</th><th>Shoulder lift (5–95%)</th><th>Elbow (5–95%)</th></tr>
+    ${b.coverage.map(c => { const pct = 100 * c.band_arm_visible / Math.max(c.frames, 1);
+      const range = r => r ? `${r[0].toFixed(0)}° – ${r[1].toFixed(0)}°` : "—";
+      return `<tr><td>${pretty(c.step)}</td><td>${c.frames}</td><td class="${pct < 50 ? "warn" : ""}">${pct.toFixed(0)}%</td>
+        <td>${range(c.shoulder_lift)}</td><td>${range(c.elbow_flex)}</td></tr>`; }).join("")}</table></div>`;
+  out.append(sec);
+}
+</script>
+</body>
+</html>

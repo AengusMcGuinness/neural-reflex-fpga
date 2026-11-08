@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from neural_reflex.armfit import band_arm, chunk_split, quaternion_matrix
+from neural_reflex.armfit import TARGETS, band_arm, chunk_split, fit_rounds, quaternion_matrix, robot_moves
 from neural_reflex.cli import refuse_overwrite
 
 
@@ -35,6 +35,33 @@ class ArmfitTests(unittest.TestCase):
         side, scores = band_arm(tracks, gyro_t, gyro_v)
         self.assertEqual(side, "left")             # the moving arm, even though the band is "right"
         self.assertGreater(scores["left"], 0.5)
+
+    def test_robot_moves_keeps_reachable_round_windows(self):
+        targets = np.array([[170.0, 10.0], [95.0, 80.0], [20.0, 30.0], [150.0, 0.0]])
+        block = {"targets": targets, "cues": ["home", "bend", "lower", "sync"], "rounds": [1, 1, 1, None]}
+        self.assertEqual(robot_moves(block).tolist(), [True, True, False, False])   # too low; not a round
+        full = {"targets": targets, "cues": ["home", "elbow", "lift_forward", "free"], "rounds": [None] * 4}
+        self.assertEqual(robot_moves(full).tolist(), [True, True, False, False])
+
+    def test_leave_one_round_out_never_sees_its_round(self):
+        rng = np.random.default_rng(2)
+        x = rng.standard_normal((900, 6))
+        y = np.column_stack([x @ rng.standard_normal(6), x @ rng.standard_normal(6)]) + 0.05 * rng.standard_normal((900, 2))
+        groups = np.repeat(np.array(["b#1", "b#2", "b#3"], dtype=object), 300)
+        result = fit_rounds(x, y, groups)
+        self.assertFalse(np.isnan(result["predicted"]).any())
+        for name in TARGETS:
+            self.assertGreater(result["scores"][name]["r2"], 0.95)
+
+    def test_robot_protocol_has_slow_repeated_rounds(self):
+        from neural_reflex.arm_pose import PROTOCOL, ROBOT_ROUNDS, protocol_step
+        rounds = {step[3] for step in PROTOCOL if len(step) > 3}
+        self.assertEqual(rounds, set(range(1, ROBOT_ROUNDS + 1)))
+        self.assertLess(sum(step[2] for step in PROTOCOL), 120)
+        # Lowering 90 degrees must not outrun the robot's ~32 deg/s cap.
+        lower = next(step for step in PROTOCOL if step[0] == "lower")
+        self.assertLessEqual(90 / lower[2], 32)
+        self.assertEqual(protocol_step(20.0)[5], 1)
 
     def test_identity_quaternion(self):
         self.assertTrue(np.allclose(quaternion_matrix(np.array([1.0, 0, 0, 0])), np.eye(3).ravel()))
