@@ -30,7 +30,7 @@
   <h1>Your hand → SO-ARM101 gripper (one plane, dry run)</h1>
   <div class="muted" id="intro"></div>
   <div class="grid">
-    <section><h2>You: hand relative to shoulder (arm lengths)</h2><canvas id="human"></canvas></section>
+    <section><h2>You: hand relative to shoulder (arm lengths)<span id="true-note"></span></h2><canvas id="human"></canvas></section>
     <section><h2>Robot: mapped target and where its gripper gets</h2><canvas id="robot"></canvas>
       <div class="legend muted"><span><i style="background:var(--target)"></i>target from your hand</span>
         <span><i style="background:var(--arm)"></i>gripper tip</span><span><i style="background:var(--moved)"></i>target unreachable, moved</span></div></section>
@@ -49,6 +49,7 @@ const fit = c => { const d = devicePixelRatio || 1, w = Math.round(c.clientWidth
 const movedPct = 100 * D.moved.filter(Boolean).length / N;
 document.getElementById("intro").textContent =
   `${D.block} · calibrated from ${D.source} · target moved to nearest reachable point ${movedPct.toFixed(0)}% of the time`;
+if (D.human_true) document.getElementById("true-note").textContent = ` · faint blue = ${D.true_label || "on-screen target"}, black = predicted from the band`;
 let index = 0, playing = true;
 
 function chain(a) { const pts = [[G.shoulder_forward, G.shoulder_height]]; let h = 0;
@@ -68,6 +69,10 @@ function drawHuman() {
   ctx.strokeStyle = css("--muted"); ctx.lineWidth = d; ctx.beginPath();
   for (let i = Math.max(0, index - 150); i <= index; i++) { const [f, u] = D.human[i]; i === Math.max(0, index - 150) ? ctx.moveTo(X(f), Y(u)) : ctx.lineTo(X(f), Y(u)); }
   ctx.stroke();
+  if (D.human_true) {          // guided recordings: the on-screen target, faint, under the prediction
+    const [tf, tu] = D.human_true[index]; ctx.globalAlpha = 0.35; ctx.strokeStyle = css("--target"); ctx.lineWidth = 10 * d;
+    ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(tf), Y(tu)); ctx.stroke(); ctx.globalAlpha = 1;
+  }
   const [f, u] = D.human[index]; ctx.strokeStyle = css("--arm"); ctx.lineWidth = 6 * d; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(f), Y(u)); ctx.stroke();
   ctx.fillStyle = css("--arm"); ctx.beginPath(); ctx.arc(X(f), Y(u), (5 + 5 * D.grip[index]) * d, 0, 7); ctx.fill();
@@ -88,6 +93,8 @@ function drawRobot() {
     const pts = chain(a); ctx.globalAlpha = alpha; ctx.strokeStyle = css(color); ctx.lineWidth = lw * d; ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Z(p[1])) : ctx.moveTo(X(p[0]), Z(p[1]))); ctx.stroke(); }
   ctx.globalAlpha = 1;
+  if (D.target_true) { const [gx, gz] = D.target_true[index]; ctx.fillStyle = css("--target"); ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.arc(X(gx), Z(gz), 7 * d, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
   const [tx, tz] = D.target[index];
   ctx.strokeStyle = css(D.moved[index] ? "--moved" : "--target"); ctx.lineWidth = 2.5 * d;
   ctx.beginPath(); ctx.arc(X(tx), Z(tz), 8 * d, 0, 7); ctx.stroke();

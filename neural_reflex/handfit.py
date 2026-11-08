@@ -32,13 +32,29 @@ def read_jsonl(path: Path) -> list[dict]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def emg_samples(records: list[dict]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return per-sample Mac time, conditioned EMG and validity for one block."""
+def longest_connection(records: list[dict]) -> list[dict]:
+    """The longest unbroken run of batches from one band connection (band clocks differ across
+    reconnects, so runs are never mixed)."""
+    runs, current = [], []
+    for record in records:
+        if current and record.get("band_connection_id") != current[-1].get("band_connection_id"):
+            runs.append(current)
+            current = []
+        current.append(record)
+    runs.append(current)
+    return max(runs, key=len)
+
+
+def emg_samples(records: list[dict], keep_longest: bool = False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return per-sample Mac time, conditioned EMG and validity for one block. If the band
+    reconnected, raise, or with keep_longest use only the longest single-connection run."""
     if len(records) < 2:
         raise ValueError("block has fewer than two EMG batches")
     connections = {record.get("band_connection_id") for record in records}
     if len(connections) > 1:
-        raise ValueError("band reconnected during this block; record it again")
+        if not keep_longest:
+            raise ValueError("band reconnected during this block; record it again")
+        records = longest_connection(records)
     records = mark_sequence_gaps(records)
     slope, intercept = fit_band_clock([r["band_timestamp_us"] for r in records],
                                       [r["host_time_s"] for r in records])
@@ -117,12 +133,13 @@ def chronological_split(n: int, test_fraction: float, gap: int) -> tuple[np.ndar
     return train, test
 
 
-def r2(actual: np.ndarray, predicted: np.ndarray) -> np.ndarray:
+def r2(actual: np.ndarray, predicted: np.ndarray, min_variance: float = 1.0) -> np.ndarray:
+    """R² per column. A column whose variance is below min_variance (in its own units squared;
+    1.0 suits angles in degrees) never really moved, so it gets NaN rather than a misleading score."""
     residual = ((actual - predicted) ** 2).sum(axis=0)
     total = ((actual - actual.mean(axis=0)) ** 2).sum(axis=0)
-    # An angle that never moved in the held-out part has no R²; report NaN, not a perfect score.
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(total / len(actual) < 1.0, np.nan, 1 - residual / total)
+        return np.where(total / len(actual) < min_variance, np.nan, 1 - residual / total)
 
 
 def smooth(values: np.ndarray, alpha: float = 0.3) -> np.ndarray:
