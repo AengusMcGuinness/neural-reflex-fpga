@@ -16,6 +16,11 @@ The first run's [graphs and results](reports/emg-20261107/README.md) are committ
 alongside the code. Correlations are exploratory; the held-out model does not yet
 provide high-fidelity angle control.
 
+The newer [pick-1 transfer analysis](reports/emg-20261107-pick-transfer/README.md)
+tests the original decoder without retraining, compares correlations across both
+recordings, audits prompted versus measured labels, and reports descriptive
+block-bootstrap uncertainty and timing sensitivity.
+
 Python 3.11 or newer, NumPy, SciPy and PyTorch are needed for training. Matplotlib
 is needed for the correlation plots. The offline commands do not require paired
 EMG hardware, a camera, or the robot.
