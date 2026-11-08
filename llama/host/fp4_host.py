@@ -41,9 +41,23 @@ def ctrl_map():
     return d
 
 
+def wait_idle(board, R, timeout=2.0):
+    """Wait until the kernel is idle with no start pending, e.g. after a host that was killed
+    mid-run, so that run's results can't be mistaken for ours."""
+    t0 = time.time()
+    while True:
+        c = board.rd32(R["ADDR_AP_CTRL"])
+        if c & 0x4 and not c & 0x1:  # ap_idle, ap_start clear
+            return
+        if time.time() - t0 > timeout:
+            raise IOError(f"kernel stays busy (ctrl=0x{c:x}); press btn[0] or reload the bitstream")
+        time.sleep(0.005)
+
+
 def run_board(board, R, prompt, steps, timeout=10.0):
     if not 1 <= len(prompt) <= 64 or not 1 <= steps <= 256:
         raise ValueError("1..64 prompt tokens, 1..256 steps")
+    wait_idle(board, R)
     board.write_words(R["ADDR_PROMPT_BASE"], struct.pack(f"<{len(prompt)}i", *prompt))
     board.wr32(R["ADDR_N_PROMPT_DATA"], len(prompt))
     board.wr32(R["ADDR_STEPS_DATA"], steps)
@@ -113,6 +127,7 @@ def stream(board, R, tok, opener, context, window, limit, quiet=False):
     from the next opener. Prints live; stops after `limit` new tokens (0 = until Ctrl-C)."""
     if not 1 <= context <= 64 or not context < window <= 256:
         raise ValueError("need 1 <= context <= 64 and context < window <= 256")
+    wait_idle(board, R)
     board.wr32(R["ADDR_GIE"], 1)
     board.wr32(R["ADDR_IER"], 1)
     if not board.rd32(R["ADDR_ISR"]) & 1:
@@ -130,6 +145,7 @@ def stream(board, R, tok, opener, context, window, limit, quiet=False):
     new_total = pos_total = cyc_total = 0
     t_start = time.time()
     expect = 0.0
+    story_len, max_story = 0, 800
     try:
         while limit == 0 or new_total < limit:
             prompt = [1] + hist[-(context - 1):] if context > 1 else [1]
@@ -147,7 +163,14 @@ def stream(board, R, tok, opener, context, window, limit, quiet=False):
                 hist.append(t)
                 new_total += 1
             out.flush()
+            # greedy decoding can fall into a loop that never emits BOS ("the broken broken ...");
+            # treat a stuck window (few distinct tokens) or a very long story like an ending
+            story_len += len(toks) - (len(prompt) - 1)
+            tail = hist[-64:]
+            if not ended and ((len(tail) == 64 and len(set(tail)) <= 12) or story_len > max_story):
+                ended = True
             if ended:
+                story_len = 0
                 k = (k + 1) % len(OPENERS)
                 hist = tok.encode(OPENERS[k].encode("utf-8"))[1:]
                 out.write(b"\n\n")
