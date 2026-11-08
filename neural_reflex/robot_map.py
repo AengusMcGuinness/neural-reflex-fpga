@@ -113,10 +113,15 @@ def translate(signals: dict, config: dict, home: dict) -> tuple[dict, dict]:
     """Robot target ticks per joint, and where each target had to be clamped."""
     k = config["ticks_per_degree"]
     targets, clamped = {}, {}
+    n = len(signals["camera_gap"])
     for joint in JOINTS:
         spec = config["joints"][joint]
         lo, hi = config["limits"][joint]
         lo, hi = lo + config["margin_ticks"], hi - config["margin_ticks"]
+        if not spec.get("enabled", True):
+            targets[joint] = np.full(n, float(home[joint]))
+            clamped[joint] = np.zeros(n, dtype=bool)
+            continue
         human = lowpass(np.asarray(signals[joint], dtype=float), spec.get("smooth_s", 0.0))
         if joint == "gripper":
             raw = home[joint] + spec["sign"] * spec["gain"] * human
@@ -195,15 +200,16 @@ def main(argv: list[str] | None = None) -> int:
     targets, clamped = translate(signals, config, home)
     report = feasibility(targets, home, config, args.speed)
     k = config["ticks_per_degree"]
-    slowdown = args.slowdown or max(r["slowdown_for_5deg"] for j, r in report.items())
+    slowdown = args.slowdown or max(r["slowdown_for_5deg"] for j, r in report.items()
+                                    if config["joints"][j].get("enabled", True))
     cap = config["speed_caps_ticks_per_s"][args.speed]
     print(f"{block.name}: {signals['time'][-1]:.0f} s of movement, band arm = MediaPipe '{signals['side']}'")
-    print(f"{'joint':14}{'dir checked':>12}{'robot range used':>20}{'clipped':>9}{'needs °/s':>11}{'cap °/s':>9}"
+    print(f"{'joint':14}{'on':>4}{'dir checked':>12}{'robot range used':>20}{'clipped':>9}{'needs °/s':>11}{'cap °/s':>9}"
           f"{'lag @1x':>9}{'slow-mo':>9}")
     for joint in JOINTS:
         r, spec = report[joint], config["joints"][joint]
         lo, hi = r["target_range_deg"]
-        print(f"{joint:14}{'yes' if spec['verified'] else 'NO':>12}{f'{lo:+.0f}°..{hi:+.0f}°':>20}"
+        print(f"{joint:14}{'yes' if spec.get('enabled', True) else 'off':>4}{'yes' if spec['verified'] else 'NO':>12}{f'{lo:+.0f}°..{hi:+.0f}°':>20}"
               f"{100 * clamped[joint].mean():>8.0f}%{r['p95_speed_deg_s']:>11.0f}{r['cap_deg_s']:>9.0f}"
               f"{r['realtime_lag_p95_deg']:>8.0f}°{r['slowdown_for_5deg']:>8.1f}x")
     print(f"Replay plan: {slowdown:g}x slower at '{args.speed}' speed "

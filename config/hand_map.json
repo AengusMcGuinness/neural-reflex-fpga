@@ -1,0 +1,28 @@
+{
+  "description": "How your hand position (relative to your shoulder, in units of your arm length) becomes the SO-ARM101 gripper tip position in its single vertical plane. forward/up are measured in your torso frame. If a recording has pick-protocol steps ('touch', 'grip'), the table height and the reach range are calibrated from them instead of the defaults below.",
+  "human": {
+    "table_up": -0.55,
+    "forward_range": [
+      0.35,
+      0.85
+    ],
+    "note": "table_up: hand height when touching the table, as a fraction of arm length below the shoulder (seated). forward_range: nearest and farthest comfortable hand reach over the table."
+  },
+  "robot": {
+    "forward_range_m": [
+      0.18,
+      0.24
+    ],
+    "grasp_height_m": 0.03,
+    "up_scale": 0.6,
+    "max_height_m": 0.2,
+    "note": "forward_range_m sits inside the simulated safe pick zone (17.5-24.5 cm for a 5 cm item). up_scale converts your hand height above the table into robot tip height (the robot arm is about 0.6x as long as a human arm). x_limits_m clamps the target to the safe zone so a long reach never asks the shoulder for more than ~40% of stall.",
+    "x_limits_m": [
+      0.175,
+      0.245
+    ]
+  },
+  "smooth_s": 0.25,
+  "max_pitch_change_deg": 1.0,
+  "max_pitch_change_note": "Per 20 ms frame (50 deg/s at most); larger jumps make the wrist spike past the motor cap."
+}

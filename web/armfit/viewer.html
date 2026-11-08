@@ -77,7 +77,7 @@ function drawArm() {
   ctx.strokeStyle = css("--line"); ctx.lineWidth = 2 * d;
   ctx.beginPath(); ctx.moveTo(ox, oy - 0.5 * s); ctx.lineTo(ox, oy + 0.9 * s); ctx.stroke();      // torso
   for (const [key, color, width] of [["actual", css("--actual"), 9], ["predicted", css("--pred"), 6]]) {
-    const [lift, elbow, wrist] = f[key].map(v => v * Math.PI / 180);
+    const [lift, elbow, wrist = 0] = f[key].map(v => v * Math.PI / 180);
     // Side view: 0° lift hangs down, 180° points up; elbow and wrist bend forward.
     let a = lift, x = ox, y = oy; const pts = [[x, y]];
     for (const [len, bend] of [[0.85, 0], [0.75, elbow], [0.25, wrist]]) {

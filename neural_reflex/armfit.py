@@ -23,7 +23,11 @@ from .handfit import emg_samples, r2, read_jsonl, smooth
 from .ridge_decoder import fit_ridge, predict_angles
 from .signal import window_features
 
-TARGETS = ("shoulder_lift", "elbow_flex", "wrist_flex")
+TARGETS = ("shoulder_lift", "elbow_flex")     # the arm angles the robot reproduces (grip comes from EMG)
+# Steps of the older "full" protocol that the robot can reproduce; robot-protocol rounds are all usable.
+ROBOT_STEPS_FULL = {"lift_forward", "elbow", "home"}
+REACHABLE_LIFT = (80.0, 185.0)     # straight up to just below shoulder height
+MIN_WINDOWS = 1500                 # 30 s of paired data
 LABEL_DELAY_S = 0.05        # camera frames arrive slightly after the movement
 MAX_ARM_GAP_S = 0.15
 CHUNK_S, GUARD_S = 5.0, 0.6
@@ -105,8 +109,8 @@ def pair_block(block_dir: Path, side: str | None = None) -> dict:
     if side:
         chosen = side
     arm_t, arm_v, _ = tracks[chosen]
-    cues = sorted((r["host_time_s"], r.get("cue")) for r in rows)
-    cue_t = np.array([t for t, _ in cues])
+    cues = sorted((r["host_time_s"], r.get("cue"), r.get("round")) for r in rows)
+    cue_t = np.array([c[0] for c in cues])
 
     window = int(SAMPLE_RATE_HZ * WINDOW_MS / 1000)
     hop = int(SAMPLE_RATE_HZ * HOP_MS / 1000)
@@ -114,7 +118,7 @@ def pair_block(block_dir: Path, side: str | None = None) -> dict:
     ends = list(range(window - 1, len(emg), hop))
     emg_rows = [window_features(emg[e - window + 1:e + 1]) if valid[e - window + 1:e + 1].all() else None
                 for e in ends]
-    emg_x, motion_x, y, label_t, cue = [], [], [], [], []
+    emg_x, motion_x, y, label_t, cue, rounds = [], [], [], [], [], []
     for position, end in enumerate(ends):
         if position < max(lags):
             continue
@@ -136,13 +140,15 @@ def pair_block(block_dir: Path, side: str | None = None) -> dict:
         motion_x.append(np.concatenate([orient_m[o], g.mean(axis=0), np.abs(g).mean(axis=0)]))
         y.append(target)
         label_t.append(t_end)
-        cue.append(cues[max(0, int(np.searchsorted(cue_t, t_end)) - 1)][1])
+        current = cues[max(0, int(np.searchsorted(cue_t, t_end)) - 1)]
+        cue.append(current[1])
+        rounds.append(current[2])
     if len(y) < 100:
         raise ValueError(f"{block_dir.name}: only {len(y)} windows overlap a visible {chosen} arm")
     label_t = np.array(label_t)
     return {"name": block_dir.name, "side": chosen, "side_scores": scores,
             "emg": np.array(emg_x), "motion": np.array(motion_x), "targets": np.array(y),
-            "times": label_t, "cues": cue, "arm_frames": {s: int(len(v[0])) for s, v in tracks.items()}}
+            "times": label_t, "cues": cue, "rounds": rounds, "arm_frames": {s: int(len(v[0])) for s, v in tracks.items()}}
 
 
 def chunk_split(times: np.ndarray):
@@ -172,27 +178,88 @@ def fit_inputs(features, targets, train, test, inner_val):
                            "mae_if_guessing_average_deg": float(guess[i])} for i, k in enumerate(TARGETS)}}
 
 
+def robot_moves(block: dict) -> np.ndarray:
+    """Windows from robot-reproducible steps, with the arm where the robot can reach."""
+    cues = np.array(block["cues"], dtype=object)
+    has_rounds = any(r is not None for r in block["rounds"])
+    steps = np.array([r is not None for r in block["rounds"]]) if has_rounds else \
+        np.isin(cues, list(ROBOT_STEPS_FULL))
+    lift = block["targets"][:, TARGETS.index("shoulder_lift")]
+    return steps & (lift >= REACHABLE_LIFT[0]) & (lift <= REACHABLE_LIFT[1])
+
+
+def select(block: dict, mask: np.ndarray) -> dict:
+    out = dict(block)
+    for key in ("emg", "motion", "targets", "times"):
+        out[key] = block[key][mask]
+    for key in ("cues", "rounds"):
+        out[key] = [v for v, keep in zip(block[key], mask) if keep]
+    return out
+
+
+def fit_rounds(features, targets, groups):
+    """Leave one round out: every window is predicted by a model that never saw its round."""
+    predicted = np.full_like(targets, np.nan, dtype=float)
+    regs = []
+    labels = sorted(set(groups))
+    for held in labels:
+        test = groups == held
+        others = [g for g in labels if g != held]
+        inner_val = groups == others[-1]
+        train = ~test
+        inner = train & ~inner_val
+        reg = max(REGULARIZATION, key=lambda r_: np.nan_to_num(np.nanmean(
+            r2(targets[inner_val], predict_angles(fit_ridge(features, targets, inner, r_), features[inner_val]))),
+            nan=-np.inf))
+        regs.append(reg)
+        predicted[test] = predict_angles(fit_ridge(features, targets, train, reg), features[test])
+    scores = r2(targets, predicted)
+    mae = np.abs(targets - predicted).mean(axis=0)
+    guess = np.mean([np.abs(targets[groups == g] - targets[groups != g].mean(axis=0)).mean(axis=0)
+                     for g in labels], axis=0)
+    model = fit_ridge(features, targets, np.ones(len(targets), dtype=bool), float(np.median(regs)))
+    return {"model": model, "predicted": predicted, "regularization": float(np.median(regs)),
+            "scores": {k: {"r2": None if np.isnan(scores[i]) else float(scores[i]), "mae_deg": float(mae[i]),
+                           "mae_if_guessing_average_deg": float(guess[i])} for i, k in enumerate(TARGETS)}}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("blocks", nargs="+", help="block folders with emg.jsonl, motion.jsonl, arm.jsonl")
     parser.add_argument("--side", choices=("left", "right"),
                         help="force which MediaPipe arm wears the band (default: match it to the gyro)")
+    parser.add_argument("--all-movements", action="store_true",
+                        help="use every window, not only robot-reproducible moves within the robot's reach")
     parser.add_argument("--output", help="folder for overlay and metrics (default: the session folder)")
     args = parser.parse_args(argv)
-    blocks = [pair_block(Path(b), args.side) for b in args.blocks]
-    for b in blocks:
+    blocks = []
+    for path in args.blocks:
+        b = pair_block(Path(path), args.side)
         s = b["side_scores"]
+        keep = np.ones(len(b["targets"]), dtype=bool) if args.all_movements else robot_moves(b)
         print(f"{b['name']}: band arm = MediaPipe '{b['side']}' (gyro match: left {s['left']:.2f}, right {s['right']:.2f}); "
-              f"visible frames left {b['arm_frames']['left']}, right {b['arm_frames']['right']}; {len(b['targets'])} paired windows")
+              f"{len(b['targets'])} paired windows, {int(keep.sum())} used "
+              f"({'all movements' if args.all_movements else 'robot-reproducible moves within reach'})")
+        blocks.append(select(b, keep))
     targets = np.concatenate([b["targets"] for b in blocks])
-    splits = [chunk_split(b["times"]) for b in blocks]
-    train, test, inner_val = (np.concatenate([s[i] for s in splits]) for i in range(3))
+    if len(targets) < MIN_WINDOWS:
+        raise SystemExit(f"Only {len(targets) * HOP_MS / 1000:.0f} s of usable movement; at least "
+                         f"{MIN_WINDOWS * HOP_MS / 1000:.0f} s is needed to train and score. Record with the robot "
+                         "protocol (record-arm --protocol robot, the default), or pass --all-movements.")
     emg = np.concatenate([b["emg"] for b in blocks])
     motion = np.concatenate([b["motion"] for b in blocks])
-    results = {"EMG only": fit_inputs(emg, targets, train, test, inner_val),
-               "band motion only": fit_inputs(motion, targets, train, test, inner_val),
-               "EMG + band motion": fit_inputs(np.hstack([emg, motion]), targets, train, test, inner_val)}
-    print(f"train {int(train.sum())} / held-out {int(test.sum())} windows")
+    inputs = {"EMG only": emg, "band motion only": motion, "EMG + band motion": np.hstack([emg, motion])}
+    groups = np.array([f"{b['name']}#{r}" for b in blocks for r in b["rounds"]], dtype=object)
+    by_round = all(r is not None for b in blocks for r in b["rounds"]) and len(set(groups)) >= 2
+    if by_round:
+        results = {name: fit_rounds(x, targets, groups) for name, x in inputs.items()}
+        test = np.ones(len(targets), dtype=bool)
+        print(f"{len(set(groups))} rounds: each scored by a model trained on the other rounds ({len(targets)} windows)")
+    else:
+        splits = [chunk_split(b["times"]) for b in blocks]
+        train, test, inner_val = (np.concatenate([s[i] for s in splits]) for i in range(3))
+        results = {name: fit_inputs(x, targets, train, test, inner_val) for name, x in inputs.items()}
+        print(f"no repeated rounds: held-out 5 s chunks, train {int(train.sum())} / held-out {int(test.sum())} windows")
     print(f"{'R² on held-out':22}" + "".join(f"{k:>16}" for k in TARGETS))
     for name, res in results.items():
         print(f"{name:22}" + "".join(f"{('—' if res['scores'][k]['r2'] is None else format(res['scores'][k]['r2'], '.2f')):>16}"
@@ -214,7 +281,10 @@ def main(argv: list[str] | None = None) -> int:
                            "predicted": [round(float(v), 1) for v in p]})
         offset += n
     metrics = {name: {"regularization": r["regularization"], **r["scores"]} for name, r in results.items()}
-    data = {"targets": list(TARGETS), "hop_ms": HOP_MS, "frames": frames, "metrics": metrics,
+    metrics["evaluation"] = "leave one round out" if by_round else "held-out 5 s chunks"
+    metrics["windows"] = "all movements" if args.all_movements else "robot-reproducible moves within reach"
+    data = {"targets": list(TARGETS), "hop_ms": HOP_MS, "frames": frames,
+            "metrics": {k: v for k, v in metrics.items() if isinstance(v, dict)},
             "blocks": [{"name": b["name"], "side": b["side"], "side_scores": b["side_scores"]} for b in blocks]}
     (output / "arm_metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     page = VIEWER.read_text(encoding="utf-8").replace(

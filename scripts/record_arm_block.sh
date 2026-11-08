@@ -1,11 +1,11 @@
 #!/bin/sh
 # Record one paired block: raw EMG + band motion from Kinesis, and webcam arm pose.
-# usage: scripts/record_arm_block.sh SESSION_DIR BLOCK_NAME 'STREAM_URL' [CAMERA_INDEX] [left|right]
+# usage: scripts/record_arm_block.sh SESSION_DIR BLOCK_NAME 'STREAM_URL' [CAMERA_INDEX] [left|right] [follow|robot|full]
 
 set -eu
 
 if [ "$#" -lt 3 ]; then
-  echo "usage: scripts/record_arm_block.sh SESSION_DIR BLOCK_NAME 'STREAM_URL' [CAMERA_INDEX] [left|right]" >&2
+  echo "usage: scripts/record_arm_block.sh SESSION_DIR BLOCK_NAME 'STREAM_URL' [CAMERA_INDEX] [left|right] [follow|robot|full]" >&2
   exit 2
 fi
 
@@ -14,6 +14,7 @@ block=$2
 url=$3
 camera=${4:-0}
 side=${5:-right}
+protocol=${6:-robot}
 dir="$session/blocks/$block"
 mkdir -p "$dir"
 
@@ -27,7 +28,7 @@ fi
   --motion-output "$dir/motion.jsonl" --block "$block" &
 emg_pid=$!
 "$python" -m neural_reflex record-arm --output "$dir/arm.jsonl" --block "$block" \
-  --camera "$camera" --side "$side" &
+  --camera "$camera" --side "$side" --protocol "$protocol" &
 arm_pid=$!
 
 cleanup() {

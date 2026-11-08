@@ -32,7 +32,7 @@ MIN_PAN_HORIZONTAL = 0.25   # fraction of the upper arm that must be horizontal 
 
 # The guided session shown at the bottom of the camera window: (step id, instruction, seconds).
 # Every recorded frame stores the step id as "cue", so it doubles as a coarse label.
-PROTOCOL = (
+FULL_PROTOCOL = (
     ("ready", "Get ready: stand back so shoulders, hips and your whole arm are in view", 5),
     ("sync", "SYNC: make 4 sharp fist clenches", 6),
     ("rest", "Rest: arm hanging down, relaxed", 4),
@@ -47,13 +47,43 @@ PROTOCOL = (
 )
 
 
+ROBOT_ROUND = (
+    ("home", "Raise your arm STRAIGHT UP and hold (robot home)", 4),
+    ("lower", "SLOWLY lower your arm FORWARD to shoulder height (count to 5)", 5),
+    ("hold_forward", "Hold your arm forward at shoulder height, elbow straight", 3),
+    ("bend", "SLOWLY bend your elbow up to 90 degrees (count to 4)", 4),
+    ("grip", "Keep the pose. Make a firm FIST and hold", 3),
+    ("open", "Open your hand and relax it", 2),
+    ("straighten", "SLOWLY straighten your elbow (count to 4)", 4),
+    ("raise", "SLOWLY raise your arm back to straight up (count to 5)", 5),
+)
+ROBOT_ROUNDS = 3
+# Only movements the SO-ARM101 can reproduce (shoulder lift, elbow, grip), slow enough for its
+# ~32 deg/s motors, repeated so a model can be tested on a round it never trained on.
+ROBOT_PROTOCOL = (
+    ("ready", "Get ready: stand back so your head, hips and raised arm are all in view", 5),
+    ("sync", "SYNC: make 4 sharp fist clenches", 6),
+    ("rest", "Rest: arm relaxed at your side", 3),
+    *((key, f"Round {r}/{ROBOT_ROUNDS}: {text}", seconds, r)
+      for r in range(1, ROBOT_ROUNDS + 1) for key, text, seconds in ROBOT_ROUND),
+    ("rest_end", "Rest: arm down. Recording stops automatically", 3),
+)
+from . import guided as follow_target  # noqa: E402  (not "guided": record_arm_pose has a guided= flag)
+
+PROTOCOLS = {"follow": follow_target.PROTOCOL, "robot": ROBOT_PROTOCOL, "full": FULL_PROTOCOL}
+TARGET_KEYS = ("step", "round", "spot", "forward", "up", "shoulder_lift", "elbow_flex", "grip")
+PROTOCOL = ROBOT_PROTOCOL
+
+
 def protocol_step(elapsed_s, protocol=PROTOCOL):
-    """Return (index, step id, instruction, seconds left in step, seconds left overall) or None when done."""
+    """Return (index, step id, instruction, seconds left in step, seconds left overall, round)
+    or None when done. round is None outside the repeated robot rounds."""
     total = sum(step[2] for step in protocol)
     start = 0.0
-    for index, (key, text, seconds) in enumerate(protocol):
+    for index, step in enumerate(protocol):
+        key, text, seconds = step[:3]
         if elapsed_s < start + seconds:
-            return index, key, text, start + seconds - elapsed_s, total - elapsed_s
+            return index, key, text, start + seconds - elapsed_s, total - elapsed_s, (step[3] if len(step) > 3 else None)
         start += seconds
     return None
 
@@ -83,7 +113,7 @@ class StreamWatch:
         return self.live
 
 
-def draw_guide(frame, step, streams, pose_ok, block):
+def draw_guide(frame, step, streams, pose_ok, block, protocol=PROTOCOL):
     """Bottom bar: instruction, time left, progress, and which data streams are recording."""
     import cv2
     h, w = frame.shape[:2]
@@ -96,13 +126,13 @@ def draw_guide(frame, step, streams, pose_ok, block):
     if step is None:
         cv2.putText(frame, "Done. Saving...", (20, h - 70), font, 0.9, white, 2, cv2.LINE_AA)
         return
-    index, _, text, step_left, total_left = step
+    index, _, text, step_left, total_left = step[:5]
     # Shrink long instructions to fit narrower cameras (some ignore the requested 960 px width).
     scale = min(0.78, 0.78 * (w - 40) / max(1, cv2.getTextSize(text, font, 0.78, 2)[0][0]))
     cv2.putText(frame, text, (20, h - 78), font, scale, white, 2, cv2.LINE_AA)
-    cv2.putText(frame, f"step {index + 1}/{len(PROTOCOL)}   {int(step_left) + 1} s left in step   "
+    cv2.putText(frame, f"step {index + 1}/{len(protocol)}   {int(step_left) + 1} s left in step   "
                 f"session {_clock(total_left)} left", (20, h - 46), font, 0.55, grey, 1, cv2.LINE_AA)
-    total = sum(s[2] for s in PROTOCOL)
+    total = sum(s[2] for s in protocol)
     done = (total - total_left) / total
     cv2.rectangle(frame, (20, h - 28), (w - 20, h - 20), (60, 60, 60), -1)
     cv2.rectangle(frame, (20, h - 28), (20 + int((w - 40) * done), h - 20), green, -1)
@@ -180,10 +210,10 @@ def side_angles(world_landmarks, visibility, side):
         return None
 
 
-def arm_row(host_time_s, block, side, world_landmarks, visibility, cue=None):
+def arm_row(host_time_s, block, side, world_landmarks, visibility, cue=None, round_=None):
     """One recorded frame. Both arms are stored because a mirrored camera swaps MediaPipe's
     left/right labels; "angles" is the requested side, "angles_by_side" has both."""
-    row = {"host_time_s": host_time_s, "block": block, "side": side, "cue": cue,
+    row = {"host_time_s": host_time_s, "block": block, "side": side, "cue": cue, "round": round_,
            "world_landmarks": world_landmarks, "visibility": visibility, "angles": None,
            "angles_by_side": {"left": None, "right": None}}
     if world_landmarks is None:
@@ -199,7 +229,7 @@ def ensure_pose_model(path):
     return ensure_hand_model(path, url=POSE_LANDMARKER_URL)
 
 
-def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
+def record_arm_pose(output, camera_index, block, model_path, side, guided=True, protocol="robot"):
     """Record until q is pressed, or until the guided protocol finishes."""
     import cv2
     import mediapipe as mp
@@ -222,6 +252,10 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
     index = SIDES[side]
     chain = [index["shoulder"], index["elbow"], index["wrist"], index["index"]]
     streams = StreamWatch(destination.parent)
+    if protocol not in PROTOCOLS:
+        raise ValueError(f"protocol must be one of {', '.join(PROTOCOLS)}")
+    steps = PROTOCOLS[protocol]
+    guided_follow = guided and protocol == "follow"
     guide_started = None
     try:
         with destination.open("w", encoding="utf-8") as sink:
@@ -232,7 +266,7 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
                 host_time_s = time.monotonic()
                 if guide_started is None:
                     guide_started = host_time_s
-                step = protocol_step(host_time_s - guide_started) if guided else None
+                step = protocol_step(host_time_s - guide_started, steps) if guided else None
                 if guided and step is None:
                     break
                 timestamp_ms = max(int((host_time_s - started) * 1000), last_ms + 1)
@@ -245,7 +279,14 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
                     world = [[p.x, p.y, p.z] for p in result.pose_world_landmarks[0]]
                     visibility = [float(p.visibility) for p in result.pose_landmarks[0]]
                 row = arm_row(host_time_s, block, side, world, visibility,
-                              cue=step[1] if step else None)
+                              cue=step[1] if step else None, round_=step[5] if step else None)
+                target = follow_target.target_at(host_time_s - guide_started) if guided_follow else None
+                measured = follow_target.measured_angles(world, visibility, side) if guided_follow else None
+                if target:
+                    # The on-screen target is the label; "followed" is what the camera saw you do.
+                    row["target"] = {k: (round(target[k], 3) if isinstance(target[k], float) else target[k])
+                                     for k in TARGET_KEYS}
+                    row["followed"] = measured
                 sink.write(json.dumps(row) + "\n")
                 sink.flush()
                 count += 1
@@ -267,8 +308,14 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True):
                 else:
                     label = "arm not fully visible: show shoulders, hips and the whole arm"
                 cv2.putText(frame, label, (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 220, 60), 2)
+                if guided_follow and target:
+                    follow_target.draw_panel(frame, target, measured)
+                    label = ("" if measured else "arm not visible: show both shoulders and your whole band arm")
+                    frame[0:52, 0:frame.shape[1] - 300] = (frame[0:52, 0:frame.shape[1] - 300] * 0.4).astype(frame.dtype)
+                    cv2.putText(frame, label, (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 220, 60), 2)
                 if guided:
-                    draw_guide(frame, step, streams.update(host_time_s), shown is not None, block)
+                    ok = (measured is not None) if guided_follow else (shown is not None)
+                    draw_guide(frame, step, streams.update(host_time_s), ok, block, steps)
                 cv2.imshow("neural reflex arm pose (q to stop)", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
