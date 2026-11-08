@@ -49,3 +49,5 @@ The repo includes a raw-EMG recorder, Kinesis batch normalizer, USB packetizer, 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the concrete band-to-FPGA-to-arm build sequence and proposed FrontPanel endpoint map.
 
 **Start here:** [ROBOT_CONTROL.md](ROBOT_CONTROL.md) drives the arm from the band (the working path); [ARM_SETUP.md](ARM_SETUP.md) has the single-arm connection and motion check; [KINESIS.md](KINESIS.md) has pairing and raw-stream commands; [BAND_FIRST.md](BAND_FIRST.md) has calibration and CPU baseline commands; [FPGA_FIRST.md](FPGA_FIRST.md) defines the tested packet format; [fpga/README.md](fpga/README.md) has the bitstream build and board check.
+
+**Side project:** llama2.c (stories260K) runs entirely on chip. [xem7310/README.md](xem7310/README.md) has the XEM7310 port (13,333 tok/s, bit-exact against its golden model); [llama/README.md](llama/README.md) has the original Urbana version.
