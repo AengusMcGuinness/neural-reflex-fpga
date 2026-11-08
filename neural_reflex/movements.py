@@ -234,7 +234,11 @@ class FrozenStream:
     @classmethod
     def from_events(cls, path: Path):
         emg, gyro, orient = [], [], []
-        for line in path.open(encoding="utf-8"):
+        import gzip
+        if not path.exists() and Path(str(path) + ".gz").exists():
+            path = Path(str(path) + ".gz")
+        opener = gzip.open if str(path).endswith(".gz") else open
+        for line in opener(path, "rt", encoding="utf-8"):
             e = json.loads(line)
             if e["type"] == "emg":
                 emg.append((e["host_time_s"], np.asarray(e["values"], dtype=float)))

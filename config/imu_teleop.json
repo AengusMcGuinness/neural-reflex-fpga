@@ -4,7 +4,7 @@
   "tilt_deg_at_table": -30,
   "tilt_deg_at_top": 40,
   "height_at_table_m": 0.03,
-  "height_at_top_m": 0.20,
+  "height_at_top_m": 0.2,
   "swing_gain": 1.0,
   "base_limit_deg": 60,
   "base_sign": 1,
@@ -15,5 +15,7 @@
   "speed": "fast",
   "stale_after_s": 0.3,
   "calibration_hold_s": 2.0,
-  "min_calibration_move_deg": 15
+  "min_calibration_move_deg": 15,
+  "elbow_max_deg": 148,
+  "elbow_max_note": "First live run: the elbow physically stopped near 152 deg (configured limit 172) and the controller faulted; keep bends below that."
 }

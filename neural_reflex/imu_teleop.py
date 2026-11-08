@@ -105,6 +105,9 @@ class Mapper:
         self.tick_limits = {j: (lo + margin, hi - margin) for j, (lo, hi) in robot_map["limits"].items()}
         limits = {j: ((self.tick_limits[j][0] - home[j]) / TICKS_PER_DEGREE,
                       (self.tick_limits[j][1] - home[j]) / TICKS_PER_DEGREE) for j in PLANAR}
+        if "elbow_max_deg" in cfg:   # the real mechanical stop can be short of the motor's limit
+            lo, hi = limits["elbow_flex"]
+            limits["elbow_flex"] = (lo, min(hi, cfg["elbow_max_deg"]))
         # Height -> (lift, elbow, wrist) table, built top-down so the gripper angle changes smoothly.
         heights, table, prev_pitch = [], [], 180.0
         for z in np.arange(cfg["height_at_top_m"], cfg["height_at_table_m"] - 1e-9, -0.002):
