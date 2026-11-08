@@ -9,11 +9,11 @@ import numpy as np
 
 from neural_reflex.air_arm import AirAim, AirArm, FistMeter, OneEuro, follow_band, forearm_aim
 from neural_reflex.arm_web import ArmController
-from neural_reflex.imu_teleop import HOME_FILE, ROBOT_MAP, Mapper
-from neural_reflex.imu_teleop import CONFIG_FILE as TELEOP_CONFIG
+from neural_reflex.air_arm import HOME_FILE, MOVING, ROBOT_MAP, Mapper
+from neural_reflex.air_arm import CONFIG_FILE as TELEOP_CONFIG
 from neural_reflex.leader_arm import JOINTS
-from neural_reflex.movements import BandStream
-from tests.test_imu_teleop import SimBus, matrix_to_quat, rot
+from neural_reflex.band_stream import BandStream
+from tests.helpers import SimBus, matrix_to_quat, rot
 
 
 def band(azimuth=90.0, elevation=0.0, twist=0.0):
@@ -24,6 +24,20 @@ def band(azimuth=90.0, elevation=0.0, twist=0.0):
 
 
 class AirArmTests(unittest.TestCase):
+    def test_mapper_moves_all_joints_inside_limits(self):
+        cfg = json.loads(TELEOP_CONFIG.read_text())
+        robot_map = json.loads(ROBOT_MAP.read_text())
+        home = json.loads(HOME_FILE.read_text())["positions"]
+        mapper = Mapper(cfg, robot_map, home)
+        low, high = mapper.degrees(-90, 30, 60), mapper.degrees(90, -30, -60)
+        self.assertLess(low["height_m"], high["height_m"])
+        for j in MOVING:
+            self.assertNotAlmostEqual(low[j], high[j], places=0, msg=j)
+            for deg in (low, high):
+                t = mapper.ticks(deg)[j]
+                self.assertTrue(mapper.tick_limits[j][0] <= t <= mapper.tick_limits[j][1], j)
+        self.assertLessEqual(max(mapper.table[:, 1]), cfg["elbow_max_deg"] + 1e-6)   # off the elbow's real stop
+
     def test_forearm_aim_follows_kinesis_axes(self):
         az, el, tw = forearm_aim(band(90, 0, 0))
         self.assertAlmostEqual(az, 90, delta=0.5)

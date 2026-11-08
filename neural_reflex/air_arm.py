@@ -27,12 +27,78 @@ from pathlib import Path
 
 import numpy as np
 
-from .imu_teleop import CONFIG_FILE as TELEOP_CONFIG, HOME_FILE, HOME_TOLERANCE, MOVING, ROBOT_MAP, Mapper, quat_to_matrix
-from .movements import BandStream
+from .band_stream import BandStream
+
+REPO = Path(__file__).resolve().parent.parent
+CONFIG_FILE = REPO / "config" / "air_arm.json"
+ROBOT_MAP = REPO / "config" / "robot_map.json"
+HOME_FILE = REPO / "config" / "arm_home.json"
+MOVING = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
+HOME_TOLERANCE = 150      # ticks (~13 degrees) from straight up before the weight-bearing joints may move
 
 TICKS_PER_DEGREE = 4096 / 360
 PLANAR = ("shoulder_lift", "elbow_flex", "wrist_flex")
 RELATIVE = ("shoulder_pan", "wrist_roll", "gripper")   # start where they are, move relative to that
+
+
+def quat_to_matrix(q) -> np.ndarray:
+    w, x, y, z = np.asarray(q, dtype=float) / np.linalg.norm(q)
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+
+
+# ---------- forearm -> robot joints ---------------------------------------------------------------
+class Mapper:
+    """Forearm angles -> target ticks for the five moving joints, inside limits and load."""
+
+    def __init__(self, cfg: dict, robot_map: dict, home: dict):
+        from .pick_sim import check_pose, inverse_kinematics
+        self.cfg, self.home = cfg, home
+        margin = robot_map["margin_ticks"]
+        self.tick_limits = {j: (lo + margin, hi - margin) for j, (lo, hi) in robot_map["limits"].items()}
+        limits = {j: ((self.tick_limits[j][0] - home[j]) / TICKS_PER_DEGREE,
+                      (self.tick_limits[j][1] - home[j]) / TICKS_PER_DEGREE) for j in PLANAR}
+        if "elbow_max_deg" in cfg:   # the real mechanical stop can be short of the motor's limit
+            lo, hi = limits["elbow_flex"]
+            limits["elbow_flex"] = (lo, min(hi, cfg["elbow_max_deg"]))
+        # Height -> (lift, elbow, wrist) table, built top-down so the gripper angle changes smoothly.
+        heights, table, prev_pitch = [], [], 180.0
+        for z in np.arange(cfg["height_at_top_m"], cfg["height_at_table_m"] - 1e-9, -0.002):
+            for pitch in sorted(np.arange(180, 104, -1.0), key=lambda p: (abs(p - prev_pitch), -p)):
+                a = inverse_kinematics(cfg["reach_m"], z, pitch)
+                if a is not None and not check_pose(a, limits):
+                    heights.append(z)
+                    table.append(a)
+                    prev_pitch = pitch
+                    break
+        if len(heights) < 10:
+            raise ValueError("no reachable heights at this reach; change reach_m in config/air_arm.json")
+        order = np.argsort(heights)
+        self.heights, self.table = np.array(heights)[order], np.array(table)[order]
+
+    def height_for(self, tilt: float) -> float:
+        c = self.cfg
+        s = (tilt - c["tilt_deg_at_table"]) / (c["tilt_deg_at_top"] - c["tilt_deg_at_table"])
+        z = c["height_at_table_m"] + min(max(s, 0.0), 1.0) * (c["height_at_top_m"] - c["height_at_table_m"])
+        return float(np.clip(z, self.heights[0], self.heights[-1]))
+
+    def degrees(self, tilt: float, swing: float, roll: float) -> dict:
+        c = self.cfg
+        z = self.height_for(tilt)
+        lift, elbow, wrist = (float(np.interp(z, self.heights, self.table[:, k])) for k in range(3))
+        base = float(np.clip(c["swing_gain"] * swing, -c["base_limit_deg"], c["base_limit_deg"]))
+        wroll = float(np.clip(c["roll_gain"] * roll, -c["wrist_roll_limit_deg"], c["wrist_roll_limit_deg"]))
+        return {"shoulder_pan": c["base_sign"] * base, "shoulder_lift": lift, "elbow_flex": elbow,
+                "wrist_flex": wrist, "wrist_roll": c["wrist_roll_sign"] * wroll, "height_m": z}
+
+    def ticks(self, deg: dict) -> dict:
+        out = {}
+        for j in MOVING:
+            lo, hi = self.tick_limits[j]
+            out[j] = int(round(min(max(self.home[j] + deg[j] * TICKS_PER_DEGREE, lo), hi)))
+        return out
+
 GRIPPER_RANGE_TICKS = 500          # fully closed, from config/robot_map.json's gripper gain
 STALE_S = 0.3
 
@@ -291,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
         args.log = str(runs / time.strftime("air-%Y%m%d-%H%M%S.jsonl"))
     print(f"run log: {args.log}")
     log = TickLog(args.log)
-    cfg = json.loads(TELEOP_CONFIG.read_text())
+    cfg = json.loads(CONFIG_FILE.read_text())
     robot_map = json.loads(ROBOT_MAP.read_text())
     home = json.loads(HOME_FILE.read_text())["positions"]
     mapper = Mapper(cfg, robot_map, home)

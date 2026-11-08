@@ -58,7 +58,7 @@ live during a run, so you don't need to paste output.
   (its motor limit says 172°) and the controller faulted.
 - If band data stops arriving, the arm holds its last pose.
 
-## Tuning: `config/imu_teleop.json`
+## Tuning: `config/air_arm.json`
 
 | Setting | Now | Effect |
 |---|---|---|
@@ -80,16 +80,18 @@ the straight-up home pose is `config/arm_home.json`.
 - **Elbow, wrist flex, base and wrist roll directions** were never formally checked; flip a `*_sign` if one
   runs backwards.
 
-## Other tools in this repo, and how far they got
+## Other tools in this repo
 
-| Tool | Status |
+| Tool | What it does |
 |---|---|
-| `scripts/dashboard` | Works. Read-only live view of the arm's joints beside the band's EMG, orientation and gyro. |
-| `neural_reflex.fist_check` | Works. Relax/fist band check; `record_arm_block.sh` runs it before recording. |
-| `scripts/record_arm_block.sh` (+ `--protocol follow`) | Works. Records EMG, band motion and camera arm pose; `follow` shows an on-screen target arm. |
-| `neural_reflex.pick_sim` | Works. One-plane pick simulation: reach, joint limits, table clearance, servo load. |
-| `scripts/robot_replay` | Works. Replays a recorded movement on the arm, slowly, with load checks. |
-| `scripts/imu_teleop` | Works, but superseded by `air_arm` (needs a 12 s calibration of the band's axes). |
-| `neural_reflex.guidedfit`, `robotfit`, `armfit`, `handfit` | Experiments. Learned decoders from band signals to arm or hand angles; little skill on unseen recordings. |
-| `scripts/movements` | Experiment. 12-movement classifier; about 33% accurate (posture drift); fist and wrist bends were distinct. |
-| `neural_reflex.correlate`, `robot_map`, `hand_map`, `direction_check` | Analysis and earlier mapping steps. |
+| `scripts/dashboard` | Read-only live view of the arm's joints beside the band's EMG, orientation and gyro. |
+| `neural_reflex.fist_check` | Relax/fist band check; `record_arm_block.sh` runs it before recording. |
+| `scripts/record_arm_block.sh` (+ `follow`) | Records EMG, band motion and camera arm pose; `follow` shows an on-screen target arm whose pose is saved as the label. |
+| `neural_reflex.pick_sim` | One-plane pick simulation: reach, joint limits, table clearance and servo load (`data/sim/pick_sim.html`). |
+| `scripts/leader_arm` | Low-level arm tools: list ports, read-only probe, bounded jog, web control page. |
+
+Removed after testing (recoverable from git history before this commit): learned decoders from band signals
+to arm or hand angles (`armfit`, `handfit`, `guidedfit`, `robotfit`: little skill on unseen recordings), the
+12-movement classifier (`movements`: about 33% accurate because posture drifted), the calibrated IMU control
+superseded by `air_arm` (`imu_teleop`), the recorded-movement replay (`robot_replay`), and earlier mapping and
+analysis steps (`robot_map`, `hand_map`, `correlate`, `direction_check`).

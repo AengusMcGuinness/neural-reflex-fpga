@@ -108,13 +108,30 @@ def trajectory(dt: float = 0.02) -> dict:
             "step": [r["step"] for r in rows]}
 
 
+def _unit(v):
+    n = np.linalg.norm(v)
+    return v / n if n > 1e-9 else v
+
+
+def body_frame(points, visibility):
+    """Up and forward unit vectors. Uses the hips when visible, else the camera's vertical."""
+    shoulders = (points[11] + points[12]) / 2
+    right = points[12] - points[11]
+    hips_seen = min(visibility[23], visibility[24]) >= 0.5
+    up = _unit(shoulders - (points[23] + points[24]) / 2) if hips_seen else np.array([0.0, -1.0, 0.0])
+    right = _unit(right - np.dot(right, up) * up)
+    forward = np.cross(up, right)
+    if np.dot(points[0] - shoulders, forward) < 0:            # the nose is in front
+        forward = -forward
+    return up, forward, hips_seen
+
+
 def measured_angles(world_landmarks, visibility, side: str) -> dict | None:
     """Your signed shoulder lift and elbow flex in the same side view as the target, using the
     camera's vertical when the table hides your hips. None if the arm isn't visible."""
     if world_landmarks is None:
         return None
     from .arm_pose import SIDES
-    from .hand_map import body_frame
     index = SIDES[side]
     if min(visibility[index[k]] for k in ("shoulder", "elbow", "wrist")) < 0.5 or min(visibility[11], visibility[12]) < 0.5:
         return None

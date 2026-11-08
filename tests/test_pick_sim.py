@@ -7,8 +7,7 @@ import numpy as np
 from neural_reflex.dashboard import load_home
 from neural_reflex.pick_sim import (FORWARD_TICK_SIGN, HAND, SAFE_KG_CM, SHOULDER_HEIGHT, STALL_KG_CM, UPPER_ARM,
                                     FOREARM, check_pose, forward_kinematics, gravity_torque, inverse_kinematics,
-                                    joint_limits, plan_pick, reach_map, to_ticks)
-from neural_reflex.robot_map import load_map
+                                    joint_limits, load_map, plan_pick, reach_map, to_ticks)
 
 
 class PickSimTests(unittest.TestCase):
