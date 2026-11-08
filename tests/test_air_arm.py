@@ -77,13 +77,14 @@ class AirArmTests(unittest.TestCase):
         air = AirArm(stream, AirAim("right"), FistMeter([np.mean(np.abs(np.diff(rng.standard_normal(400) * 20)))] * 8,
                                                           [8 * 22.6] * 8), Mapper(cfg, robot_map, home), home, robot_map)
         air.tick(t0 - 0.5)                                # neutral: level, at the starting azimuth
-        bus = SimBus(dict(home), {j: tuple(robot_map["limits"][j]) for j in JOINTS})
+        start = dict(home, shoulder_pan=home["shoulder_pan"] + 400, gripper=home["gripper"] + 300)   # base turned, handle moved
+        bus = SimBus(start, {j: tuple(robot_map["limits"][j]) for j in JOINTS})
         controller = ArmController(bus, timeout=15)
         try:
             follow_band(controller, air, duration=1.5, show=False)
         finally:
             controller.close()
-        moved = {n for n, v in bus.goals if v != home[n]}
+        moved = {n for n, v in bus.goals if v != start[n]}
         self.assertTrue({"shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"} <= moved, moved)
         for n, v in bus.goals:
             lo, hi = robot_map["limits"][n]

@@ -31,6 +31,8 @@ from .imu_teleop import CONFIG_FILE as TELEOP_CONFIG, HOME_FILE, HOME_TOLERANCE,
 from .movements import BandStream
 
 TICKS_PER_DEGREE = 4096 / 360
+PLANAR = ("shoulder_lift", "elbow_flex", "wrist_flex")
+RELATIVE = ("shoulder_pan", "wrist_roll", "gripper")   # start where they are, move relative to that
 GRIPPER_RANGE_TICKS = 500          # fully closed, from config/robot_map.json's gripper gain
 STALE_S = 0.3
 
@@ -170,6 +172,7 @@ class AirArm:
         margin = robot_map["margin_ticks"]
         self.grip_limits = (lo + margin, hi - margin)
         self.grip = OneEuro(min_cutoff=2.0, beta=0.5)
+        self.tick_limits = dict(mapper.tick_limits, gripper=self.grip_limits)
         self.state = None
 
     def tick(self, now):
@@ -203,9 +206,14 @@ def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50):
         raise RuntimeError(snap["fault"])
     pos = {j["name"]: j["position"] for j in snap["joints"]}
     joints = (*MOVING, "gripper")
-    off = [j for j in joints if abs(pos[j] - air.home[j]) > HOME_TOLERANCE]
+    # Only the joints that carry the arm's weight must start straight up. Base, wrist roll and gripper
+    # start wherever they are and move relative to that.
+    off = [j for j in PLANAR if abs(pos[j] - air.home[j]) > HOME_TOLERANCE]
     if off:
-        raise RuntimeError(f"put the arm in its straight-up home pose first ({', '.join(off)} off)")
+        raise RuntimeError(f"put the arm straight up first ({', '.join(off)} off by "
+                           + ", ".join(f"{(pos[j] - air.home[j]) / TICKS_PER_DEGREE:+.0f}°" for j in off) + ")")
+    offset = {j: pos[j] - air.home[j] for j in RELATIVE}
+    limits = air.tick_limits
     controller.set_speed("fast")
     stop = threading.Event()
 
@@ -224,6 +232,9 @@ def follow_band(controller, air: AirArm, duration=None, show=True, rate_hz=50):
             now = time.monotonic()
             targets = air.tick(now)
             if targets is not None:
+                for j in RELATIVE:
+                    lo, hi = limits[j]
+                    targets[j] = int(min(max(targets[j] + offset[j], lo), hi))
                 last = targets
             if last is not None:
                 for j, t in last.items():
