@@ -30,7 +30,7 @@
    "how_to_verify": "Smooth sweep (so101_ik.joint_sweep) of +150 ticks turned the base clockwise seen from above (verified 2026-11-08). Home tick 1967 = base facing forward."
   },
   "shoulder_lift": {
-   "home_tick": 2046,
+   "home_tick": 2099,
    "q_home_rad": -0.2438,
    "sign": 1,
    "verified": true,
@@ -43,11 +43,11 @@
     -1.74533,
     1.74533
    ],
-   "note": "Direction checked on the arm (neural_reflex/pick_sim.py FORWARD_TICK_SIGN, config/robot_map.json): larger ticks tilt the arm forward/down from straight up. In the URDF positive shoulder_lift rotates about +y of the base, which also tilts the upper arm toward +x (forward), hence sign +1. q_home_rad itself is only the URDF estimate of the straight-up pose. Direction verified on the arm 2026-11-07 (larger ticks tilt forward).",
+   "note": "Direction checked on the arm (neural_reflex/pick_sim.py FORWARD_TICK_SIGN, config/robot_map.json): larger ticks tilt the arm forward/down from straight up. In the URDF positive shoulder_lift rotates about +y of the base, which also tilts the upper arm toward +x (forward), hence sign +1. q_home_rad itself is only the URDF estimate of the straight-up pose. Direction verified on the arm 2026-11-07 (larger ticks tilt forward). Home tick refitted from 8 pen touches on 2026-11-08 (so101_ik.touch_calibrate).",
    "how_to_verify": "Larger ticks tilt the arm forward from straight up (verified on the arm). Home tick 2046 = straight up; +45 deg forward reads about 2558."
   },
   "elbow_flex": {
-   "home_tick": 936,
+   "home_tick": 1553,
    "q_home_rad": -1.2874,
    "sign": 1,
    "verified": true,
@@ -59,11 +59,11 @@
     -1.69,
     1.69
    ],
-   "note": "Home is 217 ticks above the motor minimum and 2021 below the maximum; in the URDF the straight-up elbow (-1.287 rad) is 0.40 rad above the lower limit and 2.98 rad below the upper one, so bending forward must increase ticks (sign +1). The ratio matches (217 ticks = 0.33 rad). Direction verified 2026-11-08: +80 ticks tipped the forearm forward.",
+   "note": "Home is 217 ticks above the motor minimum and 2021 below the maximum; in the URDF the straight-up elbow (-1.287 rad) is 0.40 rad above the lower limit and 2.98 rad below the upper one, so bending forward must increase ticks (sign +1). The ratio matches (217 ticks = 0.33 rad). Direction verified 2026-11-08: +80 ticks tipped the forearm forward. Home tick refitted from 8 pen touches on 2026-11-08 (so101_ik.touch_calibrate).",
    "how_to_verify": "+80 ticks tipped the forearm forward (verified 2026-11-08). Home tick 936 = straight; forearm horizontal reads about 1960."
   },
   "wrist_flex": {
-   "home_tick": 2100,
+   "home_tick": 2350,
    "q_home_rad": -0.0775,
    "sign": -1,
    "verified": true,
@@ -75,7 +75,7 @@
     -1.65806,
     1.65806
    ],
-   "note": "GEOMETRY-INFERRED, NOT MEASURED. The motor range is asymmetric about home: 1199 ticks (105 deg) below, 795 ticks (70 deg) above. Writing with the pen straight down at the table needs the hand bent 75..90 deg forward from straight (URDF wrist_flex +1.3..+1.6 rad; the upper arm is too short for any solution with less bend), which only fits the motor range if bending forward DEcreases ticks. With sign +1 the plan maps to ~2850..3040 ticks, above the 2740 maximum, and write_arm refuses it. Check this sign before the first --execute; if it is really +1, the arm cannot write with the pen vertical and the plan needs a tilted pen. Direction verified 2026-11-08 by hand with torque off: tilting the handle ~13 deg toward the front read 1950 from a 2100 home, so smaller ticks = forward, sign -1 (an earlier eyeball reading of a 7-deg nudge said the opposite and was wrong).",
+   "note": "GEOMETRY-INFERRED, NOT MEASURED. The motor range is asymmetric about home: 1199 ticks (105 deg) below, 795 ticks (70 deg) above. Writing with the pen straight down at the table needs the hand bent 75..90 deg forward from straight (URDF wrist_flex +1.3..+1.6 rad; the upper arm is too short for any solution with less bend), which only fits the motor range if bending forward DEcreases ticks. With sign +1 the plan maps to ~2850..3040 ticks, above the 2740 maximum, and write_arm refuses it. Check this sign before the first --execute; if it is really +1, the arm cannot write with the pen vertical and the plan needs a tilted pen. Direction verified 2026-11-08 by hand with torque off: tilting the handle ~13 deg toward the front read 1950 from a 2100 home, so smaller ticks = forward, sign -1 (an earlier eyeball reading of a 7-deg nudge said the opposite and was wrong). Home tick refitted from 8 pen touches on 2026-11-08 (so101_ik.touch_calibrate).",
    "how_to_verify": "Tilting the handle forward by hand with torque off LOWERED the ticks (2100 -> 1950 for ~13 deg), so sign is -1 (verified 2026-11-08). +45 deg forward reads about 1588."
   },
   "wrist_roll": {

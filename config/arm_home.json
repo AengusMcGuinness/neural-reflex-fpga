@@ -1,10 +1,10 @@
 {
-  "description": "SO-ARM101 black leader home pose: arm pointing completely straight up, base facing forward. Raw servo ticks, re-recorded 2026-11-08 with torque off after the arm was set straight by eye (the 2026-11-07 values were 12-13 deg off at the elbow and wrist).",
+  "description": "SO-ARM101 black leader home pose: arm pointing completely straight up, base facing forward. Raw servo ticks, re-recorded 2026-11-08 with torque off after the arm was set straight by eye (the 2026-11-07 values were 12-13 deg off at the elbow and wrist). Lift/elbow/wrist refitted from 8 pen touches (2026-11-08).",
   "positions": {
     "shoulder_pan": 1967,
-    "shoulder_lift": 2046,
-    "elbow_flex": 936,
-    "wrist_flex": 2100,
+    "shoulder_lift": 2099,
+    "elbow_flex": 1553,
+    "wrist_flex": 2350,
     "wrist_roll": 1039,
     "gripper": 2203
   },
@@ -16,5 +16,13 @@
     "wrist_flex": 1945,
     "wrist_roll": 1928,
     "gripper": 1776
+  },
+  "previous_by_eye": {
+    "shoulder_pan": 1967,
+    "shoulder_lift": 2046,
+    "elbow_flex": 936,
+    "wrist_flex": 2100,
+    "wrist_roll": 1039,
+    "gripper": 2203
   }
 }
