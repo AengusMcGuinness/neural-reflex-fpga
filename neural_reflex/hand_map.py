@@ -32,7 +32,7 @@ from .robot_map import DT, follow, human_signals, load_map, lowpass
 REPO = Path(__file__).resolve().parent.parent
 MAP_FILE = REPO / "config" / "hand_map.json"
 VIEWER = REPO / "web" / "hand_map" / "viewer.html"
-PITCHES = np.arange(180, 104, -5, dtype=float)
+PITCHES = np.arange(180, 104, -1, dtype=float)   # 1° steps so the gripper angle can change smoothly
 CALIBRATION_STEPS = {"touch", "grip"}      # hand resting on a table target in the pick protocol
 
 

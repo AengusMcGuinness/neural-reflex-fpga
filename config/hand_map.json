@@ -23,5 +23,6 @@
     ]
   },
   "smooth_s": 0.25,
-  "max_pitch_change_deg": 15
+  "max_pitch_change_deg": 1.0,
+  "max_pitch_change_note": "Per 20 ms frame (50 deg/s at most); larger jumps make the wrist spike past the motor cap."
 }
