@@ -30,7 +30,7 @@ if [[ ! -x "$venv_dir/bin/python" ]]; then
   uv venv --python 3.13 "$venv_dir"
 fi
 uv pip install --python "$venv_dir/bin/python" \
-  pyserial==3.5 deepdiff==9.1.0 numpy==2.5.4 tqdm==4.70.1
+  pyserial==3.5 deepdiff==9.1.0 numpy==2.5.4 "scipy>=1.14" tqdm==4.70.1
 
 PYTHONPATH="$driver_dir/src" "$venv_dir/bin/python" -c \
   'from lerobot.motors.hiwonder import HiwonderMotorsBus; print("Hiwonder driver ready")'

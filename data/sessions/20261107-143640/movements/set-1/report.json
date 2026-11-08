@@ -1,0 +1,78 @@
+{
+ "accuracy": 0.7456213511259383,
+ "recall": {
+  "rest": 0.8743718592964824,
+  "wrist_up": 0.5838509316770186,
+  "wrist_down": 0.5838150289017341,
+  "index_pinch": 0.5465116279069767,
+  "middle_pinch": 0.6497175141242938,
+  "fist": 0.4358974358974359,
+  "spread": 0.5903614457831325
+ },
+ "confusion": {
+  "rest": {
+   "rest": 1218,
+   "wrist_up": 25,
+   "wrist_down": 13,
+   "index_pinch": 0,
+   "middle_pinch": 42,
+   "fist": 4,
+   "spread": 91
+  },
+  "wrist_up": {
+   "rest": 13,
+   "wrist_up": 94,
+   "wrist_down": 2,
+   "index_pinch": 3,
+   "middle_pinch": 46,
+   "fist": 0,
+   "spread": 3
+  },
+  "wrist_down": {
+   "rest": 0,
+   "wrist_up": 8,
+   "wrist_down": 101,
+   "index_pinch": 0,
+   "middle_pinch": 7,
+   "fist": 0,
+   "spread": 57
+  },
+  "index_pinch": {
+   "rest": 42,
+   "wrist_up": 0,
+   "wrist_down": 3,
+   "index_pinch": 94,
+   "middle_pinch": 11,
+   "fist": 0,
+   "spread": 22
+  },
+  "middle_pinch": {
+   "rest": 51,
+   "wrist_up": 3,
+   "wrist_down": 3,
+   "index_pinch": 3,
+   "middle_pinch": 115,
+   "fist": 0,
+   "spread": 2
+  },
+  "fist": {
+   "rest": 5,
+   "wrist_up": 1,
+   "wrist_down": 7,
+   "index_pinch": 50,
+   "middle_pinch": 22,
+   "fist": 68,
+   "spread": 3
+  },
+  "spread": {
+   "rest": 68,
+   "wrist_up": 0,
+   "wrist_down": 0,
+   "index_pinch": 0,
+   "middle_pinch": 0,
+   "fist": 0,
+   "spread": 98
+  }
+ },
+ "use_imu": false
+}

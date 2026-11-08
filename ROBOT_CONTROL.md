@@ -90,8 +90,40 @@ the straight-up home pose is `config/arm_home.json`.
 | `neural_reflex.pick_sim` | One-plane pick simulation: reach, joint limits, table clearance and servo load (`data/sim/pick_sim.html`). |
 | `scripts/leader_arm` | Low-level arm tools: list ports, read-only probe, bounded jog, web control page. |
 
-Removed after testing (recoverable from git history before this commit): learned decoders from band signals
-to arm or hand angles (`armfit`, `handfit`, `guidedfit`, `robotfit`: little skill on unseen recordings), the
-12-movement classifier (`movements`: about 33% accurate because posture drifted), the calibrated IMU control
-superseded by `air_arm` (`imu_teleop`), the recorded-movement replay (`robot_replay`), and earlier mapping and
-analysis steps (`robot_map`, `hand_map`, `correlate`, `direction_check`).
+## EMG gestures: `scripts/movements` (experimental, this branch)
+
+Teach the band a few hand gestures; live, each gesture recognised for 0.3 s jogs one motor
+(`config/movement_motors.json`: fist/spread -> gripper, wrist up/down -> wrist flex, pinches -> elbow).
+On the only teaching recording so far (set-1: 12 movements x 3 repetitions x 4 s) the classifier gets:
+
+| trained on | windows right, held-out repetition | averaged over the movements |
+|---|---|---|
+| 6 hand gestures + rest | 75% | 61% |
+| all 12 + rest | 45% (was 33%) | 28% |
+
+What changed: EMG is band-passed 20-450 Hz with 60 Hz notches as it arrives, and each 250 ms window gives
+per-channel log amplitudes, log band powers with mean/median frequency and the log-covariance between
+channels (140 features) instead of two log amplitudes of the raw counts. Band motion and posture are off
+unless you pass `--imu`: in set-1 the recorded posture did not follow the prompted arm movements, so
+swing/tilt/palm are unrecognisable with or without it. Let `air_arm` do the arm and EMG do the hand.
+
+Training on 1 repetition gives 40% on the hand gestures, 2 give 61%, so more repetitions are the main lever:
+
+```bash
+./scripts/movements teach --url 'KINESIS_STREAM_URL' --session data/sessions/ID --name hand-1 \
+    --movements fist,spread,wrist_up,wrist_down,index_pinch,middle_pinch --repetitions 8
+```
+
+```bash
+./scripts/movements live --url 'KINESIS_STREAM_URL' --model data/sessions/ID/movements/hand-1/model.json
+```
+
+Add `--port /dev/cu.… --execute` to drive the arm. `retrain FOLDER [--movements a,b]` trains again from a
+saved recording (it rebuilds a missing prompt timeline). Start each gesture on GO and relax at "Back to
+neutral"; the first 0.8 s of every prompt is skipped. The arm's venv needs scipy (`setup_leader_arm.sh`).
+
+On `main`, the learned decoders from band signals to arm or hand angles (`armfit`, `handfit`, `guidedfit`,
+`robotfit`), `movements`, `imu_teleop`, `robot_replay`, `robot_map`, `hand_map`, `correlate` and
+`direction_check` were removed after testing. This branch keeps `movements` (above), the arm-angle decoder
+(`decode_arm`, `live_arm`, `record_puppet`) and the helpers they use (`armfit`, `handfit`, `robot_map`,
+`imu_teleop`'s rotation maths).
