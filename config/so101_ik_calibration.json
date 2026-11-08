@@ -1,0 +1,68 @@
+{
+  "description": "URDF joint angles (so101_new_calib.urdf, radians) <-> SO-ARM101 servo ticks for the so101_ik writing demo. tick = home_tick + sign * (q_rad - q_home_rad) * 4096 / (2*pi). home_tick comes from config/arm_home.json (arm pointing completely straight up, base facing forward, recorded 2026-11-07). q_home_rad is the URDF joint vector that puts the tool straight above the shoulder with the tool axis pointing up, found numerically with so101_ik.fk.urdf_chain_fk (the URDF zero is NOT straight up: at q = 0 the upper arm is 14 deg from vertical and the forearm points forward horizontally, so straight-up needs elbow_flex -1.287 rad and shoulder_lift -0.244 rad). Nothing here was measured on the arm except the shoulder_lift tick direction.",
+  "home_source": "config/arm_home.json",
+  "limits_source": "config/robot_map.json",
+  "ticks_per_rad": 651.8986469044033,
+  "ticks_per_degree": 11.377777777777778,
+  "margin_ticks": 60,
+  "max_clamp_ticks": 5,
+  "speed_caps_ticks_per_s": {
+    "fine": 60,
+    "normal": 180,
+    "fast": 360
+  },
+  "formula": "tick = home_tick + sign * (q_rad - q_home_rad) * ticks_per_rad",
+  "joints": {
+    "shoulder_pan": {
+      "home_tick": 2042,
+      "q_home_rad": 0.0,
+      "sign": 1,
+      "verified": false,
+      "limits_ticks": [720, 3312],
+      "urdf_limits_rad": [-1.91986, 1.91986],
+      "note": "URDF pan axis is -z of the base, so positive q turns the arm clockwise seen from above (to the robot's right). Unchecked which tick direction that is.",
+      "how_to_verify": "With torque off, turn the base ~30 deg clockwise seen from above and read the ticks (python -m neural_reflex.leader_arm --port PORT); larger than 2042 confirms sign +1, smaller means sign -1."
+    },
+    "shoulder_lift": {
+      "home_tick": 2003,
+      "q_home_rad": -0.2438,
+      "sign": 1,
+      "verified": false,
+      "direction_verified": true,
+      "limits_ticks": [928, 3308],
+      "urdf_limits_rad": [-1.74533, 1.74533],
+      "note": "Direction checked on the arm (neural_reflex/pick_sim.py FORWARD_TICK_SIGN, config/robot_map.json): larger ticks tilt the arm forward/down from straight up. In the URDF positive shoulder_lift rotates about +y of the base, which also tilts the upper arm toward +x (forward), hence sign +1. q_home_rad itself is only the URDF estimate of the straight-up pose.",
+      "how_to_verify": "Tilt the arm forward from straight up by a measured 45 deg (torque off) and read the ticks: expect about 2003 + 512 = 2515. If the pen-down plan drifts in height along the text, adjust q_home_rad by the residual."
+    },
+    "elbow_flex": {
+      "home_tick": 1074,
+      "q_home_rad": -1.2874,
+      "sign": 1,
+      "verified": false,
+      "limits_ticks": [857, 3095],
+      "urdf_limits_rad": [-1.69, 1.69],
+      "note": "Home is 217 ticks above the motor minimum and 2021 below the maximum; in the URDF the straight-up elbow (-1.287 rad) is 0.40 rad above the lower limit and 2.98 rad below the upper one, so bending forward must increase ticks (sign +1). The ratio matches (217 ticks = 0.33 rad).",
+      "how_to_verify": "Bend the elbow so the forearm is horizontal (90 deg from straight up) with torque off and read the ticks: expect about 1074 + 1024 = 2098."
+    },
+    "wrist_flex": {
+      "home_tick": 1945,
+      "q_home_rad": -0.0775,
+      "sign": -1,
+      "verified": false,
+      "limits_ticks": [746, 2740],
+      "urdf_limits_rad": [-1.65806, 1.65806],
+      "note": "GEOMETRY-INFERRED, NOT MEASURED. The motor range is asymmetric about home: 1199 ticks (105 deg) below, 795 ticks (70 deg) above. Writing with the pen straight down at the table needs the hand bent 75..90 deg forward from straight (URDF wrist_flex +1.3..+1.6 rad; the upper arm is too short for any solution with less bend), which only fits the motor range if bending forward DEcreases ticks. With sign +1 the plan maps to ~2850..3040 ticks, above the 2740 maximum, and write_arm refuses it. Check this sign before the first --execute; if it is really +1, the arm cannot write with the pen vertical and the plan needs a tilted pen.",
+      "how_to_verify": "Bend the wrist forward/down by 45 deg with torque off and read the ticks (python -m neural_reflex.leader_arm --port PORT): about 1945 - 512 = 1433 confirms sign -1; about 2457 means sign +1 (then set sign to 1 here and expect write_arm to refuse the vertical-pen plan)."
+    },
+    "wrist_roll": {
+      "home_tick": 1928,
+      "q_home_rad": 0.0,
+      "sign": 1,
+      "verified": false,
+      "limits_ticks": [55, 3899],
+      "urdf_limits_rad": [-2.74385, 2.84121],
+      "note": "Roll is left free by the pen task, so the plan keeps it near 0 rad = home ticks; its sign barely matters for writing.",
+      "how_to_verify": "Roll the gripper 90 deg clockwise looking from the wrist toward the fingers (torque off) and read the ticks; larger than 1928 confirms sign +1."
+    }
+  }
+}

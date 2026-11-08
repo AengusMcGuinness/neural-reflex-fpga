@@ -213,6 +213,44 @@ def run_jog(bus, max_step: int, max_travel: int, timeout: float) -> None:
             bus.disconnect(disable_torque=False)
 
 
+def run_nudge(bus, joint: str, deltas: list[int], max_step: int, max_travel: int,
+              settle: float = 0.6) -> None:
+    """Scripted version of `jog`: apply each bounded step to one joint, then torque off."""
+    if joint not in JOINTS:
+        raise ValueError(f"unknown joint: {joint}")
+    bus.connect()
+    session = None
+    try:
+        states = inspect(bus)
+        session = JogSession(bus, states, max_step=max_step, max_travel=max_travel)
+        # Validate every step against the session bounds before any torque is enabled.
+        target = states[joint].position
+        lower = max(states[joint].minimum, states[joint].position - max_travel)
+        upper = min(states[joint].maximum, states[joint].position + max_travel)
+        for delta in deltas:
+            if delta == 0 or abs(delta) > max_step:
+                raise ValueError(f"step must be a nonzero integer within ±{max_step} ticks")
+            target += delta
+            if not lower <= target <= upper:
+                raise ValueError(f"{joint} would reach {target}, outside {lower}..{upper}")
+        print(f"{joint}: start={states[joint].position}")
+        session.arm()
+        for delta in deltas:
+            target = session.jog(joint, delta)
+            time.sleep(settle)
+            measured = int(bus.read("Present_Position", joint, normalize=False))
+            print(f"{joint}: step {delta:+d} -> target={target}, measured={measured}")
+            if abs(target - measured) > 60:
+                raise RuntimeError("joint is not tracking its small target; stopping")
+    finally:
+        try:
+            if session is not None:
+                session.stop()
+        finally:
+            bus.disconnect(disable_torque=False)
+    print("Torque off.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -225,6 +263,13 @@ def main(argv: list[str] | None = None) -> int:
     jog.add_argument("--max-step", type=int, default=10)
     jog.add_argument("--max-travel", type=int, default=80)
     jog.add_argument("--timeout", type=float, default=10.0)
+    nudge = commands.add_parser("nudge", help="scripted bounded steps on one joint, then torque off")
+    nudge.add_argument("--port", required=True)
+    nudge.add_argument("--enable-motion", action="store_true", required=True)
+    nudge.add_argument("--max-step", type=int, default=20)
+    nudge.add_argument("--max-travel", type=int, default=80)
+    nudge.add_argument("joint", choices=JOINTS)
+    nudge.add_argument("deltas", type=int, nargs="+", help="signed tick steps, e.g. 20 -20")
     web = commands.add_parser("web", help="local browser controls for all six joints")
     web.add_argument("--port", required=True, help="arm USB serial port")
     web.add_argument("--http-port", type=int, default=8767)
@@ -232,7 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     web.add_argument("--timeout", type=float, default=15.0)
     args = parser.parse_args(argv)
     if args.command == "ports":
-        print("\n".join(glob("/dev/cu.*")) or "No serial devices found")
+        # macOS uses /dev/cu.*; Linux exposes the arm's USB serial as ttyACM*/ttyUSB*.
+        ports = glob("/dev/cu.*") + glob("/dev/ttyACM*") + glob("/dev/ttyUSB*")
+        print("\n".join(sorted(ports)) or "No serial devices found")
         return 0
     bus = make_bus(args.port)
     if args.command == "probe":
@@ -241,6 +288,8 @@ def main(argv: list[str] | None = None) -> int:
         if not 1 <= args.timeout <= 60:
             parser.error("--timeout must be 1..60 seconds")
         run_jog(bus, args.max_step, args.max_travel, args.timeout)
+    elif args.command == "nudge":
+        run_nudge(bus, args.joint, args.deltas, args.max_step, args.max_travel)
     else:
         from .arm_web import serve
         serve(bus, http_port=args.http_port, timeout=args.timeout)

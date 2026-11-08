@@ -21,3 +21,7 @@ data/sessions/
 *.task
 data/sim/
 data/runs/
+.venv-ik/
+data/so101_ik/*.npz
+so101_ik/results/smoke_*/
+data/so101_ik/*.log
