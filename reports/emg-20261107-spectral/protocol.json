@@ -1,0 +1,21 @@
+{
+  "status": "Specified before inspecting spectral associations",
+  "recordings": ["arm-reach", "pick-1", "pick-2"],
+  "sample_rate_hz": 2048,
+  "primary_window_samples": 512,
+  "sensitivity_window_samples": 256,
+  "hop_samples": 41,
+  "filter": "Existing causal 20-450 Hz bandpass plus 60/120/180 Hz notches, first-sample initialization and one-second warmup; reset at every acquisition gap",
+  "spectrum": "Unrectified filtered waveform; demean within window; periodic Hann; one-sided density periodogram; no zero padding",
+  "bands_hz": [[20,80], [80,150], [150,250], [250,450]],
+  "features": "Matched-window log1p RMS; four log1p band powers; four relative band powers; mean frequency; median frequency; normalized spectral entropy",
+  "relative_power_denominator": "Total periodogram power in 20-450 Hz; zero-power relative and shape features are undefined",
+  "labels": "Original torso-relative 3D camera-angle definitions; fixed +50 ms offset; no prompt targets; no interpolation across gaps >150 ms",
+  "clock": "Existing first60%-OLS for arm-reach and unit slope/first60%-median receipt offset for picking; no spectral-label timing search",
+  "correlations": "Pearson, Spearman and within-cue demeaned Pearson; all pairs are exploratory",
+  "source_selection": "For each joint, select the spectral feature/channel with largest absolute within-cue correlation in arm-reach at 250 ms, excluding RMS. Keep that pair fixed for both picking recordings and the 125 ms sensitivity check. This is exploratory selection on an already examined source recording.",
+  "reference_pairs": "EMG 1 log RMS against shoulder and elbow, on matching windows",
+  "uncertainty": "1000 paired block-bootstrap draws, seed17, within acquisition segment and round; 5 s primary, 2/10 s sensitivity. Recompute cue means within each draw. Pointwise descriptive intervals, no population p values or simultaneous-coverage claim.",
+  "diagnostics": "Raw-before-software-filter and conditioned Welch PSDs, plus channel8 spectrograms; same gap/warmup handling. Channel8 chosen due to the previously observed amplitude shift.",
+  "scope": "Spectral characterization and association only; no model retraining, accuracy claims, or hardware control"
+}
