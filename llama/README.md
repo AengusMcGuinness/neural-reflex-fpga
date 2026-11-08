@@ -5,7 +5,7 @@ Urbana board (MIT 6.205):
 
 | design | model | where the weights live | status |
 |---|---|---|---|
-| **FP4** (`fp4/`, `rtl/llama_fp4_top.sv`) | stories260K | on chip (block RAM), FP4 | **runs on the board**: bit-exact vs its golden model, 8,981 tok/s |
+| **FP4** (`fp4/`, `rtl/llama_fp4_top.sv`) | stories260K | on chip (block RAM), FP4 | **runs on the board**: bit-exact vs its golden model; 8,981 tok/s per run, endless on-chip stream at 6,900–7,600 tok/s end to end |
 | fp32 (`hls/`, `rtl/llama_top.sv`) | stories260K / stories15M | DDR3 | built, tests pass, not yet run on the board |
 
 ## Run the FP4 accelerator (the one that works)
@@ -46,15 +46,31 @@ python3 -m venv host/.venv && host/.venv/bin/pip install pyserial==3.5
    comes from a cycle counter on the FPGA, so the UART is not in the timing. Compare with the
    Mac numbers at `-n 256`: shorter runs are faster because attention covers fewer positions.
 
-5. Generate forever (Ctrl-C to stop; it then prints the speed):
+5. Generate forever, on chip (Ctrl-C to stop; it then prints the speed):
    ```bash
    host/.venv/bin/python host/fp4_host.py --port /dev/cu.usbserial-XXXX1 stream
    ```
-   Each FPGA run computes 256 positions. The next run is re-prompted with BOS plus the last 47
-   tokens (`-w`/`-c` change this). When a story ends, the next one starts from a rotating list of
-   openers; greedy decoding is deterministic, so a bare restart would repeat. Each run costs one
-   USB round trip. Measured: about 3,900 new tokens/s end to end, against about 7,400–7,800 new
-   tokens/s of FPGA time. The gap is USB latency and UART transfer.
+   The FPGA runs the endless loop itself (kernel mode 1). Each run is BOS plus the last 47
+   story tokens, 256 positions. A story ends at end-of-text, when the last 64 tokens hold 12 or
+   fewer distinct tokens (greedy decoding stuck in a loop), or after 800 positions; the next
+   story starts from a rotating list of openers. Tokens go into a 2,048-entry ring buffer
+   with sequence tags, and the Mac drains it 512 entries per USB round trip.
+   - `-q` measures without printing.
+   - `-c 16` / `-c 8` carry less context, which is faster.
+   - `--host` runs the old host-driven loop, one round trip per run.
+   - `streamcheck` requires the on-chip stream to equal the host-driven one, token for token.
+
+   Measured on the board (2026-11-08):
+
+   | | new tokens/s end to end | FPGA |
+   |---|---|---|
+   | on-chip stream, context 48 (default) | **6,919** | 7,176 |
+   | on-chip stream, context 8 | 7,612 | 8,111 |
+   | host-driven stream (`--host`) | 3,618 | 7,185 |
+
+   The board draws more current when it streams continuously. On a plain Mac USB port it has
+   dropped off USB twice during long streams. A powered USB hub (or the board's external power
+   input) avoids that. If it happens, replug and reload the bitstream.
 
 6. Check the board against the golden model. All 8 prompts must match token for token:
    ```bash

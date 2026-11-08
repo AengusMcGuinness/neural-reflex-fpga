@@ -15,13 +15,17 @@
 #define FP_VOCAB 512
 #define FP_SEQ 256       // positions supported by the on-chip KV cache
 #define FP_MAXPROMPT 64
+#define FP_PARAMS 256    // prompt[] size: mode 0 prompt, or mode 1 openers table
+#define FP_RING 2048     // tokens[] size: mode 0 per-position argmax, or mode 1 ring buffer
 #define FP_SENT (-128)   // exponent of an all-zero vector
 
-// Run the llama2.c generate() loop on chip (greedy). tokens[pos] = argmax at pos.
-// Generation stops after `steps` positions or when the next token is BOS (1).
-// *n_out = positions computed, or -1 if the arguments are invalid.
-void llama_fp4(const int prompt[FP_MAXPROMPT], int n_prompt, int steps, int tokens[FP_SEQ],
-               int *n_out);
+// mode 0: run the llama2.c generate() loop on chip (greedy). tokens[pos] = argmax at pos.
+//         Stops after `steps` positions or when the next token is BOS (1).
+//         *n_out = positions computed, or -1 if the arguments are invalid.
+// mode 1: endless stream (see llama_fp4.cpp): tokens[] is a ring of tagged entries,
+//         prompt[] the openers table; *n_out = entries written.
+void llama_fp4(const int prompt[FP_PARAMS], int n_prompt, int steps, int tokens[FP_RING],
+               int *n_out, int mode, int ctx_len, int window, int max_new);
 
 // One forward pass (exposed for the testbench's teacher-forced quality check).
 int fp4_forward(int token, int pos);

@@ -41,7 +41,7 @@ def ctrl_map():
     return d
 
 
-def wait_idle(board, R, timeout=2.0):
+def wait_idle(board, R, timeout=15.0):
     """Wait until the kernel is idle with no start pending, e.g. after a host that was killed
     mid-run, so that run's results can't be mistaken for ours."""
     t0 = time.time()
@@ -59,6 +59,8 @@ def run_board(board, R, prompt, steps, timeout=10.0):
         raise ValueError("1..64 prompt tokens, 1..256 steps")
     wait_idle(board, R)
     board.write_words(R["ADDR_PROMPT_BASE"], struct.pack(f"<{len(prompt)}i", *prompt))
+    if "ADDR_MODE_DATA" in R:
+        board.wr32(R["ADDR_MODE_DATA"], 0)
     board.wr32(R["ADDR_N_PROMPT_DATA"], len(prompt))
     board.wr32(R["ADDR_STEPS_DATA"], steps)
     board.wr32(R["ADDR_GIE"], 1)
@@ -86,6 +88,7 @@ def run_chunk(board, R, prompt, steps, expect_s=0.0, timeout=10.0):
     ap_done is pending from the previous run (stream() guarantees both)."""
     cmds = [(R["ADDR_PROMPT_BASE"], struct.pack(f"<{len(prompt)}i", *prompt)),
             (R["ADDR_N_PROMPT_DATA"], struct.pack("<I", len(prompt))),
+            (R["ADDR_MODE_DATA"], struct.pack("<I", 0)),
             (R["ADDR_STEPS_DATA"], struct.pack("<I", steps)),
             (R["ADDR_ISR"], struct.pack("<I", 1)),       # clear the previous ap_done (toggle)
             (R["ADDR_AP_CTRL"], struct.pack("<I", 1))]   # ap_start
@@ -121,73 +124,166 @@ OPENERS = ["Once upon a time", "One day", "Lily and Ben", "The little dog", "Tom
            "The bird flew"]
 
 
-def stream(board, R, tok, opener, context, window, limit, quiet=False):
-    """Endless generation: each chunk re-prompts the FPGA with BOS + the last `context`-1
-    tokens and computes `window` positions. When a story ends (BOS), start the next one
-    from the next opener. Prints live; stops after `limit` new tokens (0 = until Ctrl-C)."""
+def opener_tokens(tok, prompt):
+    """Story openers as token lists without BOS: the user's prompt first, then OPENERS[1:]."""
+    return [tok.encode(o.encode("utf-8"))[1:] for o in [prompt] + OPENERS[1:]]
+
+
+class Printer:
+    """Decodes (flag, token) entries to stdout; flag 1 = first token of a new story."""
+
+    def __init__(self, tok, out):
+        self.tok, self.out, self.prev, self.started = tok, out, 1, False
+        self.buf = bytearray()
+
+    def put(self, flag, t):
+        if flag:
+            if self.started:
+                self.buf += b"\n\n"
+            self.prev = 1
+        self.started = True
+        self.buf += Tokenizer.safe(self.tok.decode(self.prev, t))
+        self.prev = t
+
+    def flush(self):  # one terminal write per block of tokens, not one per token
+        if self.buf:
+            self.out.write(self.buf)
+            self.out.flush()
+            self.buf = bytearray()
+
+
+def stream_host(board, R, tok, ops, context, window, limit, sink=None, flush=None):
+    """Host-driven endless generation (the reference algorithm for the on-chip stream mode):
+    each FPGA run is BOS + the last `context`-1 story tokens, `window` positions. A story ends at
+    BOS, when the last 64 tokens hold <= 12 distinct ones (greedy loop), or after 800 positions;
+    the next one starts from the next opener. Emits (flag, token) to `sink`; stops once
+    `limit` new tokens were emitted (checked between runs; 0 = until Ctrl-C)."""
     if not 1 <= context <= 64 or not context < window <= 256:
         raise ValueError("need 1 <= context <= 64 and context < window <= 256")
     wait_idle(board, R)
     board.wr32(R["ADDR_GIE"], 1)
     board.wr32(R["ADDR_IER"], 1)
     if not board.rd32(R["ADDR_ISR"]) & 1:
-        # make sure an ap_done is pending, so run_chunk's toggle always clears it
-        run_board(board, R, [1], 1)
+        run_board(board, R, [1], 1)  # make sure an ap_done is pending for run_chunk's toggle
     hz = board.rd32(STATUS + 8)
-    out = sys.stdout.buffer
-    k = 0
-    hist = tok.encode(opener.encode("utf-8"))[1:]       # without BOS
-    prev = 1
-    for t in hist:
-        out.write(Tokenizer.safe(tok.decode(prev, t)))
-        prev = t
-    out.flush()
-    new_total = pos_total = cyc_total = 0
+    k, hist = 0, list(ops[0])
+    for idx, t in enumerate(hist):
+        sink(1 if idx == 0 else 0, t)
+    new_total = cyc_total = 0
+    story_len, expect = 0, 0.0
     t_start = time.time()
-    expect = 0.0
-    story_len, max_story = 0, 800
     try:
         while limit == 0 or new_total < limit:
             prompt = [1] + hist[-(context - 1):] if context > 1 else [1]
             toks, cycles = run_chunk(board, R, prompt, window, expect)
-            expect = 0.97 * cycles / hz  # next chunk: same window, about the same FPGA time
+            expect = 0.97 * cycles / hz
             cyc_total += cycles
-            pos_total += len(toks)
             ended = False
             for t in toks[len(prompt) - 1:]:
                 if t == 1:
                     ended = True
                     break
-                out.write(Tokenizer.safe(tok.decode(prev, t)))
-                prev = t
+                sink(0, t)
                 hist.append(t)
                 new_total += 1
-            out.flush()
-            # greedy decoding can fall into a loop that never emits BOS ("the broken broken ...");
-            # treat a stuck window (few distinct tokens) or a very long story like an ending
+            if flush:
+                flush()
             story_len += len(toks) - (len(prompt) - 1)
             tail = hist[-64:]
-            if not ended and ((len(tail) == 64 and len(set(tail)) <= 12) or story_len > max_story):
+            if not ended and ((len(tail) == 64 and len(set(tail)) <= 12) or story_len > 800):
                 ended = True
             if ended:
                 story_len = 0
-                k = (k + 1) % len(OPENERS)
-                hist = tok.encode(OPENERS[k].encode("utf-8"))[1:]
-                out.write(b"\n\n")
-                prev = 1
-                for t in hist:
-                    out.write(Tokenizer.safe(tok.decode(prev, t)))
-                    prev = t
-                out.flush()
+                k = (k + 1) % len(ops)
+                hist = list(ops[k])
+                for idx, t in enumerate(hist):
+                    sink(1 if idx == 0 else 0, t)
     except KeyboardInterrupt:
         pass
-    wall = time.time() - t_start
-    fsec = cyc_total / hz
-    print(f"\n\n[{new_total:,} new tokens in {wall:.2f} s wall = {new_total / max(wall, 1e-9):,.0f} tok/s end to end; "
-          f"FPGA busy {fsec * 1e3:.1f} ms = {new_total / max(fsec, 1e-9):,.0f} new tok/s "
-          f"({pos_total / max(fsec, 1e-9):,.0f} positions/s incl. re-read context); "
-          f"context {context}, window {window}]", file=sys.stderr)
-    return new_total, wall, fsec
+    return new_total, time.time() - t_start, cyc_total / hz
+
+
+def stream_chip(board, R, tok, ops, context, window, limit, batch=50000, sink=None, flush=None):
+    """On-chip endless generation (kernel mode 1): the FPGA runs the same algorithm as
+    stream_host and writes tagged entries to a 2048-entry ring that this function drains in
+    blocks of up to 512 entries per USB round trip. Runs in batches of `batch` new tokens;
+    each batch starts a new story from the next opener. Emits (flag, token)."""
+    if not 1 <= context <= 64 or not context < window <= 256:
+        raise ValueError("need 1 <= context <= 64 and context < window <= 256")
+    for r in ("ADDR_MODE_DATA", "ADDR_CTX_LEN_DATA", "ADDR_WINDOW_DATA", "ADDR_MAX_NEW_DATA"):
+        if r not in R:
+            raise SystemExit("this bitstream has no on-chip stream mode (use stream --host)")
+    wait_idle(board, R, timeout=15.0)
+    board.wr32(R["ADDR_GIE"], 1)
+    board.wr32(R["ADDR_IER"], 1)
+    hz = board.rd32(STATUS + 8)
+    RING, RB = 2048, R["ADDR_TOKENS_BASE"]
+    new_total = cyc_total = 0
+    k0 = 0  # opener the next batch starts with
+    t_start = time.time()
+    try:
+        while limit == 0 or new_total < limit:
+            want = batch if limit == 0 else min(batch, limit - new_total)
+            table_ops = ops[k0:] + ops[:k0]
+            table = [len(table_ops)]
+            for o in table_ops:
+                table += [len(o)] + list(o)
+            if len(table) > 256:
+                raise ValueError("openers table too long")
+            # Clear the ring: tags restart at 0 every batch, and a slot still holding an older
+            # entry with the same tag must never be read as new.
+            board.write_words(RB, b"\xff" * (4 * RING))
+            board.write_words(R["ADDR_PROMPT_BASE"], struct.pack(f"<{len(table)}i", *table))
+            for r, v in (("ADDR_MODE_DATA", 1), ("ADDR_CTX_LEN_DATA", context),
+                         ("ADDR_WINDOW_DATA", window), ("ADDR_MAX_NEW_DATA", want)):
+                board.wr32(R[r], v)
+            if board.rd32(R["ADDR_ISR"]) & 1:
+                board.wr32(R["ADDR_ISR"], 1)  # clear a stale ap_done so the cycle counter runs
+            board.wr32(R["ADDR_AP_CTRL"], 1)
+            rd, done, ti, left = 0, False, -1, 0
+            last_progress = time.time()
+            while True:
+                off = rd % RING
+                n = min(512, RING - off)
+                board.s.write(b"R" + struct.pack("<II", R["ADDR_AP_CTRL"], 1) +
+                              b"R" + struct.pack("<II", RB + 4 * off, n))
+                ctrl = struct.unpack("<I", board._read(4))[0]
+                ents = struct.unpack(f"<{n}I", board._read(4 * n))
+                done = done or bool(ctrl & 0x2)
+                got = 0
+                for e in ents:
+                    if (e >> 16) != (rd & 0x7FFF):  # not written yet (tag is the sequence number)
+                        break
+                    t, flag = e & 0xFFF, (e >> 12) & 1
+                    if flag:  # first token of table entry ti (the kernel cycles through the table)
+                        ti = (ti + 1) % len(table_ops)
+                        left = len(table_ops[ti]) - 1  # opener tokens still to come
+                    elif left > 0:
+                        left -= 1
+                    else:
+                        new_total += 1
+                    sink(flag, t)
+                    rd += 1
+                    got += 1
+                if got:
+                    last_progress = time.time()
+                    if flush:
+                        flush()
+                elif done:
+                    break
+                else:
+                    if time.time() - last_progress > 2.0:
+                        raise IOError("no new ring entries for 2 s: the host fell behind (ring overrun)")
+                    time.sleep(0.001)
+            n_out = struct.unpack("<i", board.read_words(R["ADDR_N_OUT_DATA"], 1))[0]
+            if n_out != rd:
+                raise IOError(f"ring entries read {rd} != kernel n_out {n_out}")
+            lo, hi = struct.unpack("<2I", board.read_words(STATUS, 2))
+            cyc_total += (hi << 32) | lo
+            k0 = (k0 + ti + 1) % len(ops)
+    except KeyboardInterrupt:
+        pass
+    return new_total, time.time() - t_start, cyc_total / hz
 
 
 def text(tok, prompt, amax):
@@ -219,11 +315,16 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("-i", "--prompt", default="Once upon a time")
     r.add_argument("-n", "--steps", type=int, default=256)
-    st = sub.add_parser("stream", help="generate forever (Ctrl-C to stop), re-prompting with recent tokens")
-    st.add_argument("-i", "--prompt", default="Once upon a time")
-    st.add_argument("-c", "--context", type=int, default=48, help="tokens carried into each chunk (<= 64)")
-    st.add_argument("-w", "--window", type=int, default=256, help="positions per FPGA run (<= 256)")
-    st.add_argument("-n", "--tokens", type=int, default=0, help="stop after this many new tokens (0 = never)")
+    for name, hlp in (("stream", "generate forever on chip (Ctrl-C to stop)"),
+                      ("streamcheck", "on-chip stream must equal the host-driven stream, token for token")):
+        st = sub.add_parser(name, help=hlp)
+        st.add_argument("-i", "--prompt", default="Once upon a time")
+        st.add_argument("-c", "--context", type=int, default=48, help="tokens carried into each run (<= 64)")
+        st.add_argument("-w", "--window", type=int, default=256, help="positions per run (<= 256)")
+        st.add_argument("-n", "--tokens", type=int, default=0 if name == "stream" else 3000,
+                        help="stop after this many new tokens (0 = never)")
+        st.add_argument("--host", action="store_true", help="host-driven loop (one USB round trip per run)")
+        st.add_argument("-q", "--quiet", action="store_true", help="don't print the text (measure raw speed)")
     args = ap.parse_args()
 
     board = Board(args.port, args.baud)
@@ -233,8 +334,31 @@ def main():
     R = ctrl_map()
     tok = Tokenizer(os.path.join(ROOT, "fp4", "tok512.bin"), 512)  # llama2.c's stories260K tokenizer
 
-    if args.cmd == "stream":
-        stream(board, R, tok, args.prompt, args.context, args.window, args.tokens)
+    if args.cmd in ("stream", "streamcheck"):
+        ops = opener_tokens(tok, args.prompt)
+        if args.cmd == "streamcheck":
+            a, b = [], []
+            na, _, fa = stream_host(board, R, tok, ops, args.context, args.window, args.tokens,
+                                    sink=lambda f, t: a.append((f, t)))
+            nb, _, fb = stream_chip(board, R, tok, ops, args.context, args.window, args.tokens,
+                                    batch=args.tokens, sink=lambda f, t: b.append((f, t)))
+            first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), None)
+            ok = a == b
+            print(f"host-driven: {len(a)} entries ({na} new tokens); on-chip: {len(b)} entries ({nb} new tokens)")
+            print("STREAM MATCH: on-chip stream == host-driven stream" if ok else
+                  f"STREAM MISMATCH at entry {first if first is not None else min(len(a), len(b))}")
+            return 0 if ok else 1
+        pr = Printer(tok, sys.stdout.buffer)
+        if args.quiet:
+            sink, fl = (lambda f, t: None), None
+        else:
+            sink, fl = pr.put, pr.flush
+        fn = stream_host if args.host else stream_chip
+        n, wall, fsec = fn(board, R, tok, ops, args.context, args.window, args.tokens, sink=sink, flush=fl)
+        pr.flush()
+        print(f"\n\n[{'host-driven' if args.host else 'on-chip'} stream: {n:,} new tokens in {wall:.2f} s = "
+              f"{n / max(wall, 1e-9):,.0f} tok/s end to end; FPGA busy {fsec:.2f} s = "
+              f"{n / max(fsec, 1e-9):,.0f} new tok/s; context {args.context}, window {args.window}]", file=sys.stderr)
         return 0
 
     if args.cmd == "run":

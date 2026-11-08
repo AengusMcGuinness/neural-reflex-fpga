@@ -293,12 +293,12 @@ static int quant(int src, int ngroups) {
 #pragma HLS INLINE off
     uint32_t amax = 0;
 q_max:
-    for (int g = 0; g < 2 * ngroups; g++) {
+    for (int g = 0; g < 4 * ngroups; g++) {
 #pragma HLS PIPELINE II = 1
-#pragma HLS LOOP_TRIPCOUNT min = 16 max = 48
+#pragma HLS LOOP_TRIPCOUNT min = 32 max = 96
         uint32_t m = 0;
-        for (int k = 0; k < 4; k++) {
-            int j = 4 * g + k;
+        for (int k = 0; k < 2; k++) {
+            int j = 2 * g + k;
             float v = src == 2 ? hb[j] : (src == 1 ? o[j & 63] : x[j & 63]);
             uint32_t a = fabs_bits(v);
             m = a > m ? a : m;
@@ -308,12 +308,12 @@ q_max:
     int e = pow2exp(amax);
     int ss = 0;
 q_q:
-    for (int g = 0; g < 2 * ngroups; g++) {
+    for (int g = 0; g < 4 * ngroups; g++) {
 #pragma HLS PIPELINE II = 1
-#pragma HLS LOOP_TRIPCOUNT min = 16 max = 48
+#pragma HLS LOOP_TRIPCOUNT min = 32 max = 96
         int part = 0;
-        for (int k = 0; k < 4; k++) {
-            int j = 4 * g + k;
+        for (int k = 0; k < 2; k++) {
+            int j = 2 * g + k;
             float v = src == 2 ? hb[j] : (src == 1 ? o[j & 63] : x[j & 63]);
             int q = roundq(v, e);
             mq_set(j, q);
@@ -403,11 +403,11 @@ grp:
         ge[g] = pow2exp(a);
     }
 qnt:
-    for (int i = 0; i < 32; i++) { // 4 values per cycle
+    for (int i = 0; i < 64; i++) { // 2 values per cycle
 #pragma HLS PIPELINE II = 1
-        int g = i >> 1, e = ge[g];
-        for (int kk = 0; kk < 4; kk++) {
-            int k = 4 * (i & 1) + kk;
+        int g = i >> 2, e = ge[g];
+        for (int kk = 0; kk < 2; kk++) {
+            int k = 2 * (i & 3) + kk;
             int q = roundq(rv[g][k], e);
             if (g < 8) qi[8 * g + k] = (s8)q;
             else if (g < 12) krow[8 * (g - 8) + k] = (uint8_t)(int8_t)q;
@@ -490,8 +490,8 @@ headgrp:
         // per head: k = floor(d * A) with A = C0 * 2^(ekmax + eq + 8) = mA * 2^eA exactly
         ap_uint<24> mA[4];
         int eA[4], evg[4];
-        ap_int<41> acc[4][FP_HS];
-        ap_uint<25> S[4];
+        static ap_int<41> acc[4][FP_HS];
+        static ap_uint<25> S[4];
 #pragma HLS ARRAY_PARTITION variable = mA complete
 #pragma HLS ARRAY_PARTITION variable = eA complete
 #pragma HLS ARRAY_PARTITION variable = evg complete
@@ -586,14 +586,33 @@ layers:
     return matmul(MM_CLS, 3840, 512, exf, 0.0f, 0.0f, 0.0f);
 }
 
-void llama_fp4(const int prompt[FP_MAXPROMPT], int n_prompt, int steps, int tokens[FP_SEQ],
-               int *n_out) {
+// ------------------------------------------------------------------ stream mode helpers
+static ap_uint<9> hist[64]; // last tokens of the current story (circular)
+static bool seen[FP_VOCAB];
+
+// Mode 1 emits ring entries: (seq & 0x7fff) << 16 | flag << 12 | token, seq = entry index.
+// flag 1 marks the first token of a story opener (the host starts a new paragraph there).
+static void emit(int tokens[FP_RING], int &produced, int tok, int flag) {
+#pragma HLS INLINE
+    tokens[produced & (FP_RING - 1)] = ((produced & 0x7fff) << 16) | (flag << 12) | tok;
+    produced++;
+}
+
+void llama_fp4(const int prompt[FP_PARAMS], int n_prompt, int steps, int tokens[FP_RING],
+               int *n_out, int mode, int ctx_len, int window, int max_new) {
 #pragma HLS INTERFACE mode = s_axilite port = prompt bundle = control
 #pragma HLS INTERFACE mode = s_axilite port = n_prompt bundle = control
 #pragma HLS INTERFACE mode = s_axilite port = steps bundle = control
 #pragma HLS INTERFACE mode = s_axilite port = tokens bundle = control
 #pragma HLS INTERFACE mode = s_axilite port = n_out bundle = control
+#pragma HLS INTERFACE mode = s_axilite port = mode bundle = control
+#pragma HLS INTERFACE mode = s_axilite port = ctx_len bundle = control
+#pragma HLS INTERFACE mode = s_axilite port = window bundle = control
+#pragma HLS INTERFACE mode = s_axilite port = max_new bundle = control
 #pragma HLS INTERFACE mode = s_axilite port = return bundle = control
+#pragma HLS ALLOCATION function instances = fp4_forward limit = 1
+#pragma HLS BIND_STORAGE variable = hist type = ram_2p impl = lutram
+#pragma HLS BIND_STORAGE variable = seen type = ram_2p impl = lutram
 #pragma HLS ARRAY_PARTITION variable = x cyclic factor = 8
 #pragma HLS ARRAY_PARTITION variable = o cyclic factor = 8
 #pragma HLS ARRAY_PARTITION variable = hb cyclic factor = 8
@@ -621,26 +640,132 @@ void llama_fp4(const int prompt[FP_MAXPROMPT], int n_prompt, int steps, int toke
 #pragma HLS BIND_STORAGE variable = CROMB_M type = rom_1p impl = bram
 #pragma HLS BIND_STORAGE variable = CROMT type = rom_1p impl = bram
 #pragma HLS ARRAY_PARTITION variable = T16 complete
-    if (n_prompt < 1 || n_prompt > FP_MAXPROMPT || steps < 1 || steps > FP_SEQ) {
-        *n_out = -1;
-        return;
-    }
-    for (int i = 0; i < n_prompt; i++) {
-        if (prompt[i] < 0 || prompt[i] >= FP_VOCAB) {
+    if (mode == 0) {
+        // ---- one generate() run: tokens[pos] = argmax at pos (llama2.c run.c loop)
+        if (n_prompt < 1 || n_prompt > FP_MAXPROMPT || steps < 1 || steps > FP_SEQ) {
             *n_out = -1;
             return;
         }
-    }
-    int token = prompt[0], n = 0;
-gen:
-    for (int pos = 0; pos < steps; pos++) {
+        for (int i = 0; i < n_prompt; i++) {
+            if (prompt[i] < 0 || prompt[i] >= FP_VOCAB) {
+                *n_out = -1;
+                return;
+            }
+        }
+        int token = prompt[0], n = 0;
+    gen:
+        for (int pos = 0; pos < steps; pos++) {
 #pragma HLS LOOP_TRIPCOUNT min = 1 max = 256 avg = 256
-        int a = fp4_forward(token, pos);
-        tokens[pos] = a;
-        n = pos + 1;
-        int next = pos < n_prompt - 1 ? prompt[pos + 1] : a;
-        if (next == 1) break;
-        token = next;
+            int a = fp4_forward(token, pos);
+            tokens[pos] = a;
+            n = pos + 1;
+            int next = pos < n_prompt - 1 ? prompt[pos + 1] : a;
+            if (next == 1) break;
+            token = next;
+        }
+        *n_out = n;
+        return;
     }
-    *n_out = n;
+
+    // ---- mode 1: endless stream, the same algorithm as host/fp4_host.py `stream`:
+    // each run is BOS + the last (ctx_len-1) story tokens, `window` positions; new tokens go to
+    // the ring; a story ends at BOS, when the last 64 tokens hold <= 12 distinct ones, or after
+    // 800 positions, and the next story starts from the next opener. Stops once >= max_new new
+    // tokens were emitted (checked between runs). prompt[] holds the openers:
+    // [count, len0, tokens0..., len1, tokens1..., ...] (tokens without BOS, all < FP_VOCAB).
+    int nop = prompt[0];
+    if (ctx_len < 1 || ctx_len > FP_MAXPROMPT || window <= ctx_len || window > FP_SEQ ||
+        max_new < 1 || nop < 1 || nop > 32) {
+        *n_out = -1;
+        return;
+    }
+    int produced = 0, emitted_new = 0, story_len = 0, k = 0;
+    int head = 0, hl = 0, hl_total = 0;
+    // load opener k into the history and emit it (first token flagged)
+    {
+        int off = 1;
+        int len = prompt[off];
+        head = 0;
+        hl = 0;
+        hl_total = 0;
+    op0:
+        for (int j = 0; j < len && j < 63; j++) {
+            int t = prompt[off + 1 + j];
+            hist[head] = t;
+            head = (head + 1) & 63;
+            hl = hl < 64 ? hl + 1 : 64;
+            hl_total = hl_total < 64 ? hl_total + 1 : 64;
+            emit(tokens, produced, t, j == 0 ? 1 : 0);
+        }
+    }
+stream:
+    while (emitted_new < max_new) {
+#pragma HLS LOOP_TRIPCOUNT min = 1 max = 1000
+        int m = hl < ctx_len - 1 ? hl : ctx_len - 1;
+        int np = 1 + m;
+        int base = head - m; // prompt = BOS, hist[base .. base+m) (hist only grows after it)
+        int token = 1, ncomp = 0;
+        bool ended = false;
+    sgen:
+        for (int pos = 0; pos < window; pos++) {
+#pragma HLS LOOP_TRIPCOUNT min = 1 max = 256 avg = 256
+            int a = fp4_forward(token, pos);
+            ncomp = pos + 1;
+            int next;
+            if (pos < np - 1) {
+                next = (int)hist[(base + pos) & 63];
+            } else {
+                next = a;
+                if (a == 1) {
+                    ended = true;
+                } else {
+                    emit(tokens, produced, a, 0);
+                    hist[head] = a;
+                    head = (head + 1) & 63;
+                    hl = hl < 64 ? hl + 1 : 64;
+                    hl_total = hl_total < 64 ? hl_total + 1 : 64;
+                    emitted_new++;
+                }
+            }
+            if (next == 1) break;
+            token = next;
+        }
+        story_len += ncomp - (np - 1);
+        if (!ended && hl_total == 64) { // distinct tokens among the last 64
+            int distinct = 0;
+        dc:
+            for (int j = 0; j < 64; j++) {
+                int t = (int)hist[j];
+                if (!seen[t]) {
+                    seen[t] = true;
+                    distinct++;
+                }
+            }
+        dclr:
+            for (int j = 0; j < 64; j++) seen[(int)hist[j]] = false;
+            if (distinct <= 12) ended = true;
+        }
+        if (!ended && story_len > 800) ended = true;
+        if (ended) {
+            story_len = 0;
+            k = k + 1 == nop ? 0 : k + 1;
+            int off = 1;
+        fo:
+            for (int j = 0; j < k; j++) off += 1 + prompt[off];
+            int len = prompt[off];
+            head = 0;
+            hl = 0;
+            hl_total = 0;
+        op:
+            for (int j = 0; j < len && j < 63; j++) {
+                int t = prompt[off + 1 + j];
+                hist[head] = t;
+                head = (head + 1) & 63;
+                hl = hl < 64 ? hl + 1 : 64;
+                hl_total = hl_total < 64 ? hl_total + 1 : 64;
+                emit(tokens, produced, t, j == 0 ? 1 : 0);
+            }
+        }
+    }
+    *n_out = produced;
 }
