@@ -68,9 +68,9 @@ ROBOT_PROTOCOL = (
       for r in range(1, ROBOT_ROUNDS + 1) for key, text, seconds in ROBOT_ROUND),
     ("rest_end", "Rest: arm down. Recording stops automatically", 3),
 )
-from . import guided  # noqa: E402  (stdlib + numpy only; no import cycle)
+from . import guided as follow_target  # noqa: E402  (not "guided": record_arm_pose has a guided= flag)
 
-PROTOCOLS = {"follow": guided.PROTOCOL, "robot": ROBOT_PROTOCOL, "full": FULL_PROTOCOL}
+PROTOCOLS = {"follow": follow_target.PROTOCOL, "robot": ROBOT_PROTOCOL, "full": FULL_PROTOCOL}
 TARGET_KEYS = ("step", "round", "spot", "forward", "up", "shoulder_lift", "elbow_flex", "grip")
 PROTOCOL = ROBOT_PROTOCOL
 
@@ -280,8 +280,8 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True, 
                     visibility = [float(p.visibility) for p in result.pose_landmarks[0]]
                 row = arm_row(host_time_s, block, side, world, visibility,
                               cue=step[1] if step else None, round_=step[5] if step else None)
-                target = guided.target_at(host_time_s - guide_started) if guided_follow else None
-                measured = guided.measured_angles(world, visibility, side) if guided_follow else None
+                target = follow_target.target_at(host_time_s - guide_started) if guided_follow else None
+                measured = follow_target.measured_angles(world, visibility, side) if guided_follow else None
                 if target:
                     # The on-screen target is the label; "followed" is what the camera saw you do.
                     row["target"] = {k: (round(target[k], 3) if isinstance(target[k], float) else target[k])
@@ -309,7 +309,7 @@ def record_arm_pose(output, camera_index, block, model_path, side, guided=True, 
                     label = "arm not fully visible: show shoulders, hips and the whole arm"
                 cv2.putText(frame, label, (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 220, 60), 2)
                 if guided_follow and target:
-                    guided.draw_panel(frame, target, measured)
+                    follow_target.draw_panel(frame, target, measured)
                     label = ("" if measured else "arm not visible: show both shoulders and your whole band arm")
                     frame[0:52, 0:frame.shape[1] - 300] = (frame[0:52, 0:frame.shape[1] - 300] * 0.4).astype(frame.dtype)
                     cv2.putText(frame, label, (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 220, 60), 2)
